@@ -2,10 +2,12 @@ package main
 
 import (
 	"log"
+	"os"
 
 	"github.com/gofiber/fiber/v2"
 	fiberSwagger "github.com/swaggo/fiber-swagger"
 
+	"pos-fiber-app/docs"
 	"pos-fiber-app/internal/auth"
 	"pos-fiber-app/internal/business"
 	"pos-fiber-app/internal/category"
@@ -19,15 +21,14 @@ import (
 	"pos-fiber-app/internal/user"
 	"pos-fiber-app/pkg/database"
 
-	_ "pos-fiber-app/docs"
+	_ "pos-fiber-app/docs" // Imports generated swagger docs
 )
 
 // @title POS System API
 // @version 1.0
 // @description Multi-tenant POS backend built with Go Fiber
-// @host localhost:8080
 // @BasePath /api/v1
-
+//
 // @securityDefinitions.apikey BearerAuth
 // @in header
 // @name Authorization
@@ -42,70 +43,67 @@ func main() {
 	// Initialize Fiber app
 	app := fiber.New()
 
-	// Swagger UI
+	// Swagger UI endpoint
 	app.Get("/swagger/*", fiberSwagger.WrapHandler)
 
+	// === DYNAMIC SWAGGER HOST ===
+	// Override the hardcoded @host with runtime environment value
+	apiHost := os.Getenv("API_HOST")
+	if apiHost == "" {
+		apiHost = "http://localhost:" + config.AppPort() // fallback for local development
+	}
+
+	// Modify generated swagger info at runtime
+	docs.SwaggerInfo.Host = apiHost
+	docs.SwaggerInfo.BasePath = "/api/v1"
+
 	// ======================
-	// Public routes (no auth required)
+	// Public routes (no authentication required)
 	// ======================
 	public := app.Group("/api/v1")
 
-	// User routes (e.g., register, profile - if any public ones)
+	// User-related public routes (if any, e.g., registration)
 	user.RegisterUserRoutes(public, db)
 
-	// Auth public routes: login, forgot-password, verify-otp, reset-password, refresh
-	// Note: RegisterAuthRoutes handles both public and protected parts
-
 	// ======================
-	// Protected routes (JWT + Tenant required)
+	// Protected: Tenant-level resources
+	// Requires: JWT + Tenant extraction
 	// ======================
 	protected := app.Group("/api/v1",
 		middleware.JWTProtected(),
 		middleware.TenantMiddleware(),
 	)
 
-	// Register ALL auth routes (public + protected like logout)
+	// Register auth routes (handles both public login endpoints and protected logout)
 	auth.RegisterAuthRoutes(public, protected, db)
 
-	// Migrate password reset OTP table
+	// Migrate password reset table
 	auth.MigratePasswordReset(db)
 
-	// Business management (OWNER/MANAGER level)
+	// Tenant-level resources
 	business.RegisterBusinessRoutes(protected, db)
-
-	// Outlet & Terminal management
 	outlet.RegisterRoutes(protected, db)
 	terminal.RegisterRoutes(protected, db)
 
-	// Example protected endpoints
-	protected.Get("/reports",
-		middleware.RequireRoles("OWNER", "MANAGER"),
-		reportsHandler,
-	)
-
-	protected.Post("/sales",
-		middleware.RequireRoles("CASHIER"),
-		createSaleHandler,
-	)
-
 	// ======================
-	// Business-scoped routes (JWT + Tenant + Current Business required)
-	// These are for Categories, Products, Inventory
+	// Business-scoped routes
+	// Requires: JWT + Tenant + Current Business (via X-Current-Business-ID header)
 	// ======================
 	businessScoped := app.Group("/api/v1",
 		middleware.JWTProtected(),
 		middleware.TenantMiddleware(),
-		middleware.CurrentBusinessMiddleware(), // Must come after TenantMiddleware
+		middleware.CurrentBusinessMiddleware(),
 	)
 
-	// Register business-scoped modules
+	// Business-specific modules
 	category.RegisterCategoryRoutes(businessScoped, db)
 	product.RegisterProductRoutes(businessScoped, db)
 	inventory.RegisterInventoryRoutes(businessScoped, db)
-	sale.RegisterSaleRoutes(businessScoped, db) // ← NEW: Sales module
+	sale.RegisterSaleRoutes(businessScoped, db)
 
 	// Start server
-	log.Println("Server running on port", config.AppPort())
+	log.Printf("Server starting on %s", apiHost)
+	log.Printf("Swagger UI available at %s/swagger/index.html", apiHost)
 	log.Fatal(app.Listen(":" + config.AppPort()))
 }
 
@@ -113,14 +111,14 @@ func main() {
 // Placeholder handlers
 // ======================
 
-func reportsHandler(c *fiber.Ctx) error {
-	return c.JSON(fiber.Map{
-		"message": "Reports endpoint - accessible to OWNER and MANAGER",
-	})
-}
+// func reportsHandler(c *fiber.Ctx) error {
+// 	return c.JSON(fiber.Map{
+// 		"message": "Reports endpoint - accessible to OWNER and MANAGER",
+// 	})
+// }
 
-func createSaleHandler(c *fiber.Ctx) error {
-	return c.JSON(fiber.Map{
-		"message": "Create sale endpoint - accessible to CASHIER",
-	})
-}
+// func createSaleHandler(c *fiber.Ctx) error {
+// 	return c.JSON(fiber.Map{
+// 		"message": "Create sale endpoint - accessible to CASHIER",
+// 	})
+// }
