@@ -27,7 +27,7 @@ go.work.sum
 /*.sqlite3
 
 # Swagger docs (generated)
-docs/
+# docs/
 swagger.json
 swagger.yaml
 
