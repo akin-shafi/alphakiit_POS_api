@@ -15,7 +15,7 @@ COPY . .
 
 # Build the server binary (from cmd/server package)
 # Output binary named "main"
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags="-s -w" -o main ./cmd/server
+RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o main .
 
 # Stage 2: Create minimal runtime image
 FROM alpine:latest
