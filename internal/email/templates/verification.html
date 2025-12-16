@@ -1,0 +1,31 @@
+{{define "verification"}}
+{{template "header" .}}
+
+<h2>Verify Your Email Address</h2>
+
+<p>Hello{{if .Name}}, {{.Name}}{{end}},</p>
+
+<p>Thank you for signing up with <strong>{{.AppName}}</strong>!</p>
+
+<p>Please confirm your email address by clicking the button below. This helps us keep your account secure.</p>
+
+<div style="text-align: center; margin: 40px 0;">
+    <a href="{{.VerificationURL}}"
+        style="background:#007bff; color:white; padding:14px 28px; text-decoration:none; border-radius:6px; font-size:16px; display:inline-block;">
+        Verify Email Address
+    </a>
+</div>
+
+<p>Or copy and paste this link into your browser:</p>
+<p style="word-break: break-all; background:#f8f9fa; padding:10px; border-radius:4px;">
+    {{.VerificationURL}}
+</p>
+
+<p>This link will expire in 24 hours for security reasons.</p>
+
+<p>If you didn't create an account with us, please ignore this email.</p>
+
+<p>Thanks,<br>The {{.AppName}} Team</p>
+
+{{template "footer" .}}
+{{end}}

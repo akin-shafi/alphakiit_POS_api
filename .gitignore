@@ -1,0 +1,61 @@
+# Binaries
+main
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Build dirs
+/bin/
+/build/
+/dist/
+/tmp/
+
+# Go workspace
+go.work
+go.work.sum
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Databases
+/*.db
+/*.sqlite
+/*.sqlite3
+
+# Swagger docs (generated)
+docs/
+swagger.json
+swagger.yaml
+
+# IDEs
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Vendor (not needed with go modules)
+/vendor/
+
+# Tests
+*.test
+*.out
+
+# Hot reload
+.air.toml
+air.conf
+
+# Render
+.render
