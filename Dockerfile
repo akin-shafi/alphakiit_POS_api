@@ -14,7 +14,7 @@ RUN go mod download
 COPY . .
 
 # Build the real server binary from cmd/server
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags="-s -w" -o app ./cmd/server
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags="-s -w" -o app ./cmd/server/main.go
 
 # Final lightweight runtime
 FROM alpine:latest
