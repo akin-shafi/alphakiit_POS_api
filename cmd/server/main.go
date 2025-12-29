@@ -14,6 +14,7 @@ import (
 	"pos-fiber-app/internal/config"
 	"pos-fiber-app/internal/inventory"
 	"pos-fiber-app/internal/middleware"
+	"pos-fiber-app/internal/onboarding"
 	"pos-fiber-app/internal/outlet"
 	"pos-fiber-app/internal/product"
 	"pos-fiber-app/internal/sale"
@@ -27,11 +28,15 @@ import (
 // @title POS System API
 // @version 1.0
 // @description Multi-tenant POS backend built with Go Fiber
-// @BasePath /api/v1
-//
-// @securityDefinitions.apikey BearerAuth
-// @in header
-// @name Authorization
+
+// @host localhost:8080          // Replace with your actual local host/port, e.g., localhost:8080
+// @BasePath /api/v1             // This matches your existing basePath
+
+// @schemes http                 // Use "http" for local dev; change to "https" for production/remote
+
+// Optional: for production/remote
+// @host https://posfiber.onrender.com // e.g., api.example.com (no port if default 80/443)
+// @schemes https
 func main() {
 	// Load environment variables
 	config.LoadEnv()
@@ -64,6 +69,9 @@ func main() {
 
 	// User-related public routes (if any, e.g., registration)
 	user.RegisterUserRoutes(public, db)
+
+	// Onboarding route
+	onboarding.RegisterRoutes(public, db)
 
 	// ======================
 	// Protected: Tenant-level resources

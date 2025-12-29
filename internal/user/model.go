@@ -12,7 +12,9 @@ type User struct {
 	ID        uint `gorm:"primaryKey"`
 	FirstName string
 	LastName  string
-	Email     string `gorm:"uniqueIndex"`
+	phone     string
+	// Email     string `gorm:"uniqueIndex"`
+	Email     string `gorm:"uniqueIndex" json:"email"`
 	Password  string
 	Active    bool
 	TenantID  string

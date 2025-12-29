@@ -39,6 +39,7 @@ func RunMigrations(db *gorm.DB) {
 		&inventory.Inventory{},
 		&sale.Sale{},
         &sale.SaleItem{},
+
         
 		// Add any other models here (e.g. password reset OTP if separate)
 	)
