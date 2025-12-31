@@ -716,6 +716,61 @@ const docTemplate = `{
                 }
             }
         },
+        "/onboarding/register": {
+            "post": {
+                "description": "Creates a tenant, business, and owner user in a single atomic operation",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Onboarding"
+                ],
+                "summary": "Complete business onboarding",
+                "parameters": [
+                    {
+                        "description": "Onboarding payload",
+                        "name": "payload",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/onboarding.OnboardingRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Business onboarded successfully",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid request body",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/outlets": {
             "post": {
                 "security": [
@@ -2335,6 +2390,64 @@ const docTemplate = `{
                 }
             }
         },
+        "onboarding.OnboardingRequest": {
+            "type": "object",
+            "required": [
+                "business",
+                "user"
+            ],
+            "properties": {
+                "business": {
+                    "type": "object",
+                    "required": [
+                        "address",
+                        "city",
+                        "name",
+                        "type"
+                    ],
+                    "properties": {
+                        "address": {
+                            "type": "string"
+                        },
+                        "city": {
+                            "type": "string"
+                        },
+                        "name": {
+                            "type": "string",
+                            "minLength": 2
+                        },
+                        "type": {
+                            "type": "string"
+                        }
+                    }
+                },
+                "user": {
+                    "type": "object",
+                    "required": [
+                        "email",
+                        "first_name",
+                        "last_name",
+                        "password"
+                    ],
+                    "properties": {
+                        "email": {
+                            "type": "string"
+                        },
+                        "first_name": {
+                            "type": "string",
+                            "minLength": 2
+                        },
+                        "last_name": {
+                            "type": "string",
+                            "minLength": 2
+                        },
+                        "password": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
         "outlet.CreateOutletRequest": {
             "type": "object",
             "properties": {
@@ -2771,6 +2884,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "email": {
+                    "description": "Email     string ` + "`" + `gorm:\"uniqueIndex\"` + "`" + `",
                     "type": "string"
                 },
                 "firstName": {
@@ -2800,27 +2914,21 @@ const docTemplate = `{
                 }
             }
         }
-    },
-    "securityDefinitions": {
-        "BearerAuth": {
-            "type": "apiKey",
-            "name": "Authorization",
-            "in": "header"
-        }
     }
 }`
 
 // SwaggerInfo holds exported Swagger Info so clients can modify it
 var SwaggerInfo = &swag.Spec{
-	Version:          "1.0",
+	Version:          "",
 	Host:             "",
-	BasePath:         "/api/v1",
+	BasePath:         "",
 	Schemes:          []string{},
-	Title:            "POS System API",
-	Description:      "Multi-tenant POS backend built with Go Fiber",
+	Title:            "",
+	Description:      "",
 	InfoInstanceName: "swagger",
 	SwaggerTemplate:  docTemplate,
-
+	LeftDelim:        "{{",
+	RightDelim:       "}}",
 }
 
 func init() {

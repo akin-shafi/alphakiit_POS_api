@@ -1,26 +1,28 @@
 package config
 
 import (
-    "log"
-    "os"
+	"log"
+	"os"
 
-    "github.com/joho/godotenv"
+	"github.com/joho/godotenv"
 )
 
 func LoadEnv() {
-    if err := godotenv.Load(); err != nil {
-        log.Println("No .env file found, using environment variables")
-    }
+	if err := godotenv.Load(); err != nil {
+		log.Println("No .env file found, using environment variables")
+	}
 }
 
 func AppPort() string {
-    port := os.Getenv("PORT")
-    if port == "" {
-        return "8080"
+    if port := os.Getenv("APP_PORT"); port != "" {
+        return port
     }
-    return port
+    if port := os.Getenv("PORT"); port != "" {
+        return port
+    }
+    return "8080"
 }
 
 func DatabaseURL() string {
-    return os.Getenv("DATABASE_URL")
+	return os.Getenv("DATABASE_URL")
 }
