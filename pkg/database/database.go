@@ -1,3 +1,4 @@
+// pkg/database/database.go
 package database
 
 import (
