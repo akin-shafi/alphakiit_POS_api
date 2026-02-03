@@ -15,6 +15,7 @@ import (
 	"pos-fiber-app/internal/outlet"
 	"pos-fiber-app/internal/product"
 	"pos-fiber-app/internal/sale"
+	"pos-fiber-app/internal/shift"
 	"pos-fiber-app/internal/subscription"
 	"pos-fiber-app/internal/terminal"
 	"pos-fiber-app/internal/user"
@@ -64,6 +65,7 @@ func RunMigrations(db *gorm.DB) error {
 		&sale.Sale{},
 		&sale.SaleItem{},
 		&subscription.Subscription{},
+		&shift.Shift{},
 
 		// add all other models here...
 		// &models.Transaction{},
