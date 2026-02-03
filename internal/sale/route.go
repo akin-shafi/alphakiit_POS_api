@@ -9,6 +9,7 @@ import (
 // RegisterSaleRoutes registers all sales-related endpoints under the business-scoped group
 func RegisterSaleRoutes(r fiber.Router, db *gorm.DB) {
 	// Draft & Cart Management
+	r.Post("/sales", CreateSaleHandler(db))                           // One-shot sale
 	r.Post("/sales/draft", CreateDraftHandler(db))                    // Start new sale
 	r.Post("/sales/:sale_id/items", AddItemHandler(db))               // Add item to sale
 	r.Delete("/sales/:sale_id/items/:item_id", RemoveItemHandler(db)) // Optional: remove specific item

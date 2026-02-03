@@ -31,6 +31,9 @@ type CreateProductRequest struct {
 	Cost        float64 `json:"cost" validate:"gte=0"`
 	CategoryID  uint    `json:"category_id" validate:"required"`
 	ImageURL    string  `json:"image_url" validate:"omitempty,url"`
+	Stock       int     `json:"stock"`
+	MinStock    int     `json:"min_stock"`
+	Barcode     string  `json:"barcode,omitempty"`
 }
 
 // UpdateProductRequest (all fields optional)
@@ -42,5 +45,8 @@ type UpdateProductRequest struct {
 	Cost        *float64 `json:"cost,omitempty" validate:"omitempty,gte=0"`
 	CategoryID  *uint    `json:"category_id,omitempty"`
 	ImageURL    string   `json:"image_url,omitempty" validate:"omitempty,url"`
+	Stock       *int     `json:"stock,omitempty"`
+	MinStock    *int     `json:"min_stock,omitempty"`
+	Barcode     string   `json:"barcode,omitempty"`
 	Active      *bool    `json:"active,omitempty"`
 }

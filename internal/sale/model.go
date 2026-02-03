@@ -32,13 +32,15 @@ type Sale struct {
 	Status        SaleStatus     `gorm:"type:varchar(20);default:'DRAFT'" json:"status"`
 	TerminalID    uint           `json:"terminal_id"`
 	CashierID     uint           `json:"cashier_id"`
+	DailySequence int            `gorm:"type:int;default:0" json:"daily_sequence"` // resets daily
 	SaleDate      time.Time      `json:"sale_date"`
 	SyncedAt      *time.Time     `json:"synced_at,omitempty"` // for offline sync
 	CreatedAt     time.Time      `json:"created_at"`
 	UpdatedAt     time.Time      `json:"updated_at"`
 	DeletedAt     gorm.DeletedAt `gorm:"index" json:"-"`
 
-	SaleItems []SaleItem `gorm:"foreignKey:SaleID;constraint:OnDelete:CASCADE" json:"items"`
+	CashierName string     `gorm:"-" json:"cashier_name"` // Populated manually or via join
+	SaleItems   []SaleItem `gorm:"foreignKey:SaleID;constraint:OnDelete:CASCADE" json:"items"`
 }
 
 type SaleItem struct {

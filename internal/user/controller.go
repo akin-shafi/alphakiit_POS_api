@@ -1,6 +1,8 @@
 package user
 
 import (
+	"fmt"
+	"pos-fiber-app/internal/email"
 	"pos-fiber-app/internal/types"
 	"strconv"
 
@@ -22,7 +24,10 @@ import (
 // @Router /users [post]
 func CreateUserHandler(service *UserService) fiber.Handler {
 	return func(c *fiber.Ctx) error {
-		tenantID := c.Get("X-Tenant-ID")
+		tenantID, _ := c.Locals("tenant_id").(string)
+		if tenantID == "" {
+			tenantID = c.Get("X-Tenant-ID")
+		}
 		if tenantID == "" {
 			return c.Status(400).JSON(fiber.Map{"error": "Missing X-Tenant-ID"})
 		}
@@ -33,10 +38,27 @@ func CreateUserHandler(service *UserService) fiber.Handler {
 		}
 
 		user.TenantID = tenantID
+		rawPassword := user.Password
 
 		if err := service.Create(user); err != nil {
 			return c.Status(500).JSON(fiber.Map{"error": err.Error()})
 		}
+
+		// Send invitation email
+		go func(targetEmail, firstName, password string) {
+			sender := email.NewSender(email.LoadConfig())
+			subject := "Invitation to join AB-POS"
+			body := fmt.Sprintf(`
+				<h2>Welcome to AB-POS</h2>
+				<p>Hello %s,</p>
+				<p>You have been added as a staff member. Here are your login credentials:</p>
+				<p><b>Email:</b> %s</p>
+				<p><b>Password:</b> %s</p>
+				<p>Please log in and change your password as soon as possible.</p>
+			`, firstName, targetEmail, password)
+
+			_ = sender.SendCustomEmail(targetEmail, subject, body)
+		}(user.Email, user.FirstName, rawPassword) // Note: user.Password is now hashed in service.Create, but we need the raw one.
 
 		return c.Status(201).JSON(user)
 	}
@@ -55,7 +77,10 @@ func CreateUserHandler(service *UserService) fiber.Handler {
 // @Router /users [get]
 func ListUsersHandler(service *UserService) fiber.Handler {
 	return func(c *fiber.Ctx) error {
-		tenantID := c.Get("X-Tenant-ID")
+		tenantID, _ := c.Locals("tenant_id").(string)
+		if tenantID == "" {
+			tenantID = c.Get("X-Tenant-ID")
+		}
 		if tenantID == "" {
 			return c.Status(400).JSON(fiber.Map{"error": "Missing X-Tenant-ID"})
 		}

@@ -25,8 +25,9 @@ func CurrentBusinessMiddleware() fiber.Handler {
 		// Optional: verify user has access to this business (query user_business_access table if needed)
 		// For now, we trust the frontend has validated from /businesses list
 
+		c.Locals("business_id", uint(businessID))
 		c.Locals("current_business_id", uint(businessID))
-		c.Locals("tenant_id", claims.TenantID) // keep for backward compat
+		c.Locals("tenant_id", claims.TenantID)
 
 		return c.Next()
 	}

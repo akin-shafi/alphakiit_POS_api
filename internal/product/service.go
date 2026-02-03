@@ -18,12 +18,27 @@ func Create(db *gorm.DB, businessID uint, req CreateProductRequest) (*Product, e
 		Cost:        req.Cost,
 		CategoryID:  req.CategoryID,
 		ImageURL:    req.ImageURL,
+		Stock:       req.Stock,
+		MinStock:    req.MinStock,
+		Barcode:     req.Barcode,
 		Active:      true, // default
 	}
 
 	if err := db.Create(product).Error; err != nil {
 		return nil, err
 	}
+
+	// Create inventory record
+	inv := struct {
+		ProductID    uint `gorm:"column:product_id"`
+		BusinessID   uint `gorm:"column:business_id"`
+		CurrentStock int  `gorm:"column:current_stock"`
+	}{
+		ProductID:    product.ID,
+		BusinessID:   businessID,
+		CurrentStock: product.Stock,
+	}
+	db.Table("inventories").Create(&inv)
 
 	return product, nil
 }
@@ -32,7 +47,10 @@ func Create(db *gorm.DB, businessID uint, req CreateProductRequest) (*Product, e
 func ListByBusiness(db *gorm.DB, businessID uint, filters ...func(*gorm.DB) *gorm.DB) ([]Product, error) {
 	var products []Product
 
-	query := db.Where("business_id = ? AND active = ?", businessID, true)
+	query := db.Table("products").
+		Select("products.id, products.business_id, products.category_id, products.name, products.sku, products.description, products.price, products.cost, products.image_url, products.min_stock, products.barcode, products.active, COALESCE(inventories.current_stock, products.stock) as stock").
+		Joins("LEFT JOIN inventories ON inventories.product_id = products.id AND inventories.business_id = products.business_id").
+		Where("products.business_id = ? AND products.active = ?", businessID, true)
 
 	for _, filter := range filters {
 		query = filter(query)
@@ -63,7 +81,11 @@ func WithSearch(term string) func(*gorm.DB) *gorm.DB {
 func Get(db *gorm.DB, id, businessID uint) (*Product, error) {
 	var product Product
 
-	err := db.Where("id = ? AND business_id = ?", id, businessID).First(&product).Error
+	err := db.Table("products").
+		Select("products.id, products.business_id, products.category_id, products.name, products.sku, products.description, products.price, products.cost, products.image_url, products.min_stock, products.barcode, products.active, COALESCE(inventories.current_stock, products.stock) as stock").
+		Joins("LEFT JOIN inventories ON inventories.product_id = products.id AND inventories.business_id = products.business_id").
+		Where("products.id = ? AND products.business_id = ?", id, businessID).
+		First(&product).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, errors.New("product not found")
@@ -103,12 +125,41 @@ func Update(db *gorm.DB, id, businessID uint, req UpdateProductRequest) (*Produc
 	if req.ImageURL != "" {
 		product.ImageURL = req.ImageURL
 	}
+	if req.Stock != nil {
+		product.Stock = *req.Stock
+	}
+	if req.MinStock != nil {
+		product.MinStock = *req.MinStock
+	}
+	if req.Barcode != "" {
+		product.Barcode = req.Barcode
+	}
 	if req.Active != nil {
 		product.Active = *req.Active
 	}
 
 	if err := db.Save(product).Error; err != nil {
 		return nil, err
+	}
+
+	// Sync to inventory table
+	if req.Stock != nil {
+		var count int64
+		db.Table("inventories").Where("product_id = ? AND business_id = ?", id, businessID).Count(&count)
+		if count > 0 {
+			db.Table("inventories").Where("product_id = ? AND business_id = ?", id, businessID).Update("current_stock", *req.Stock)
+		} else {
+			inv := struct {
+				ProductID    uint `gorm:"column:product_id"`
+				BusinessID   uint `gorm:"column:business_id"`
+				CurrentStock int  `gorm:"column:current_stock"`
+			}{
+				ProductID:    id,
+				BusinessID:   businessID,
+				CurrentStock: *req.Stock,
+			}
+			db.Table("inventories").Create(&inv)
+		}
 	}
 
 	return product, nil

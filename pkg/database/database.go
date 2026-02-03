@@ -15,6 +15,7 @@ import (
 	"pos-fiber-app/internal/outlet"
 	"pos-fiber-app/internal/product"
 	"pos-fiber-app/internal/sale"
+	"pos-fiber-app/internal/subscription"
 	"pos-fiber-app/internal/terminal"
 	"pos-fiber-app/internal/user"
 )
@@ -27,7 +28,29 @@ func ConnectDB() *gorm.DB {
 	return db
 }
 
-func RunMigrations(db *gorm.DB) {
+// func RunMigrations(db *gorm.DB) {
+// 	err := db.AutoMigrate(
+// 		&auth.RefreshToken{}, // if you have password_reset_otp table
+// 		&user.User{},
+// 		&business.Business{},
+// 		&business.Tenant{}, // if you're still using the Tenant table
+// 		&outlet.Outlet{},
+// 		&terminal.Terminal{},
+// 		&category.Category{},
+// 		&product.Product{},
+// 		&inventory.Inventory{},
+// 		&sale.Sale{},
+//         &sale.SaleItem{},
+
+// 		// Add any other models here (e.g. password reset OTP if separate)
+// 	)
+// 	if err != nil {
+// 		log.Fatal("Failed to run migrations:", err)
+// 	}
+// }
+
+func RunMigrations(db *gorm.DB) error {
+	// Order is important: migrate parent tables first
 	err := db.AutoMigrate(
 		&auth.RefreshToken{}, // if you have password_reset_otp table
 		&user.User{},
@@ -39,12 +62,20 @@ func RunMigrations(db *gorm.DB) {
 		&product.Product{},
 		&inventory.Inventory{},
 		&sale.Sale{},
-        &sale.SaleItem{},
+		&sale.SaleItem{},
+		&subscription.Subscription{},
 
-        
-		// Add any other models here (e.g. password reset OTP if separate)
+		// add all other models here...
+		// &models.Transaction{},
+		// &models.Payment{},
+		// &models.Customer{},
+		// etc.
 	)
+
 	if err != nil {
-		log.Fatal("Failed to run migrations:", err)
+		return err
 	}
+
+	log.Println("Database migrations completed successfully")
+	return nil
 }
