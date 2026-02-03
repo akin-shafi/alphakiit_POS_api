@@ -17,7 +17,7 @@ const docTemplate = `{
     "paths": {
         "/auth/forgot-password": {
             "post": {
-                "description": "Send a 6-digit OTP to the user's email for password reset",
+                "description": "Generates a password reset OTP and sends it to the user's email",
                 "consumes": [
                     "application/json"
                 ],
@@ -27,10 +27,10 @@ const docTemplate = `{
                 "tags": [
                     "Auth"
                 ],
-                "summary": "Request password reset OTP",
+                "summary": "Request Password Reset",
                 "parameters": [
                     {
-                        "description": "Email address",
+                        "description": "Email payload",
                         "name": "body",
                         "in": "body",
                         "required": true,
@@ -46,7 +46,7 @@ const docTemplate = `{
                 ],
                 "responses": {
                     "200": {
-                        "description": "message: OTP sent",
+                        "description": "OK",
                         "schema": {
                             "type": "object",
                             "additionalProperties": {
@@ -62,22 +62,13 @@ const docTemplate = `{
                                 "type": "string"
                             }
                         }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
                     }
                 }
             }
         },
         "/auth/login": {
             "post": {
-                "description": "Authenticate a user and return access + refresh tokens",
+                "description": "Authenticate user and return tokens",
                 "consumes": [
                     "application/json"
                 ],
@@ -87,10 +78,10 @@ const docTemplate = `{
                 "tags": [
                     "Auth"
                 ],
-                "summary": "Login",
+                "summary": "User Login",
                 "parameters": [
                     {
-                        "description": "Login payload",
+                        "description": "Login credentials",
                         "name": "body",
                         "in": "body",
                         "required": true,
@@ -104,9 +95,7 @@ const docTemplate = `{
                         "description": "OK",
                         "schema": {
                             "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
+                            "additionalProperties": true
                         }
                     },
                     "400": {
@@ -117,28 +106,6 @@ const docTemplate = `{
                                 "type": "string"
                             }
                         }
-                    }
-                }
-            }
-        },
-        "/auth/logout": {
-            "post": {
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "description": "Delete refresh token and logout user",
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Auth"
-                ],
-                "summary": "Logout",
-                "responses": {
-                    "204": {
-                        "description": "No Content"
                     },
                     "401": {
                         "description": "Unauthorized",
@@ -152,9 +119,9 @@ const docTemplate = `{
                 }
             }
         },
-        "/auth/refresh": {
+        "/auth/resend-otp": {
             "post": {
-                "description": "Validate refresh token and issue new access token",
+                "description": "Generates a new OTP and sends it to the user's email",
                 "consumes": [
                     "application/json"
                 ],
@@ -164,17 +131,80 @@ const docTemplate = `{
                 "tags": [
                     "Auth"
                 ],
-                "summary": "Refresh Access Token",
+                "summary": "Resend Verification OTP",
                 "parameters": [
                     {
-                        "description": "Refresh token payload",
+                        "description": "Email payload",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/auth.ResendOTPRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/auth/reset-password": {
+            "post": {
+                "description": "Resets the user's password using a valid OTP",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Auth"
+                ],
+                "summary": "Reset Password",
+                "parameters": [
+                    {
+                        "description": "Reset payload",
                         "name": "body",
                         "in": "body",
                         "required": true,
                         "schema": {
                             "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
+                            "properties": {
+                                "email": {
+                                    "type": "string"
+                                },
+                                "new_password": {
+                                    "type": "string"
+                                },
+                                "otp": {
+                                    "type": "string"
+                                }
                             }
                         }
                     }
@@ -197,13 +227,22 @@ const docTemplate = `{
                                 "type": "string"
                             }
                         }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
                     }
                 }
             }
         },
-        "/auth/verify-otp": {
+        "/auth/verify-email": {
             "post": {
-                "description": "Verify the OTP sent to the user's email",
+                "description": "Verifies the OTP and activates the user account",
                 "consumes": [
                     "application/json"
                 ],
@@ -213,10 +252,63 @@ const docTemplate = `{
                 "tags": [
                     "Auth"
                 ],
-                "summary": "Verify OTP",
+                "summary": "Verify Email OTP",
                 "parameters": [
                     {
-                        "description": "Email and OTP",
+                        "description": "Verification payload",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/auth.VerifyEmailRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/auth/verify-reset-otp": {
+            "post": {
+                "description": "Checks if the password reset OTP is valid",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Auth"
+                ],
+                "summary": "Verify Reset OTP",
+                "parameters": [
+                    {
+                        "description": "Verification payload",
                         "name": "body",
                         "in": "body",
                         "required": true,
@@ -235,7 +327,7 @@ const docTemplate = `{
                 ],
                 "responses": {
                     "200": {
-                        "description": "message: OTP verified",
+                        "description": "OK",
                         "schema": {
                             "type": "object",
                             "additionalProperties": {
@@ -244,7 +336,7 @@ const docTemplate = `{
                         }
                     },
                     "400": {
-                        "description": "error: Invalid or expired OTP",
+                        "description": "Bad Request",
                         "schema": {
                             "type": "object",
                             "additionalProperties": {
@@ -745,9 +837,7 @@ const docTemplate = `{
                         "description": "Business onboarded successfully",
                         "schema": {
                             "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
+                            "additionalProperties": true
                         }
                     },
                     "400": {
@@ -2082,12 +2172,29 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "email": {
-                    "type": "string",
-                    "example": "admin@biz.com"
+                    "type": "string"
                 },
                 "password": {
-                    "type": "string",
-                    "example": "password"
+                    "type": "string"
+                }
+            }
+        },
+        "auth.ResendOTPRequest": {
+            "type": "object",
+            "properties": {
+                "email": {
+                    "type": "string"
+                }
+            }
+        },
+        "auth.VerifyEmailRequest": {
+            "type": "object",
+            "properties": {
+                "code": {
+                    "type": "string"
+                },
+                "email": {
+                    "type": "string"
                 }
             }
         },
@@ -2442,7 +2549,8 @@ const docTemplate = `{
                             "minLength": 2
                         },
                         "password": {
-                            "type": "string"
+                            "type": "string",
+                            "minLength": 4
                         }
                     }
                 }
@@ -2893,6 +3001,9 @@ const docTemplate = `{
                 "id": {
                     "type": "integer"
                 },
+                "isVerified": {
+                    "type": "boolean"
+                },
                 "lastName": {
                     "type": "string"
                 },
@@ -2910,6 +3021,10 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "updatedAt": {
+                    "type": "string"
+                },
+                "verificationToken": {
+                    "description": "Temporary token if needed, or just rely on OTP table",
                     "type": "string"
                 }
             }

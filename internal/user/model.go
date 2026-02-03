@@ -14,14 +14,16 @@ type User struct {
 	LastName  string
 	phone     string
 	// Email     string `gorm:"uniqueIndex"`
-	Email     string `gorm:"uniqueIndex" json:"email"`
-	Password  string
-	Active    bool
-	TenantID  string
-	OutletID  *uint
-	Role      string // OWNER / MANAGER / CASHIER
-	CreatedAt time.Time
-	UpdatedAt time.Time
+	Email             string `gorm:"uniqueIndex" json:"email"`
+	Password          string
+	Active            bool
+	TenantID          string
+	OutletID          *uint
+	Role              string // OWNER / MANAGER / CASHIER
+	IsVerified        bool   `gorm:"default:false"`
+	VerificationToken string // Temporary token if needed, or just rely on OTP table
+	CreatedAt         time.Time
+	UpdatedAt         time.Time
 }
 
 // HashPassword hashes a plain password

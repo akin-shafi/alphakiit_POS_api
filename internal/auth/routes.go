@@ -2,23 +2,28 @@
 package auth
 
 import (
+	"pos-fiber-app/internal/config"
+	"pos-fiber-app/internal/middleware"
+
 	"github.com/gofiber/fiber/v2"
 	"gorm.io/gorm"
 )
 
 // RegisterAuthRoutes registers all authentication-related routes
-// Public: login, refresh, forgot-password flow
-// Protected: logout
-func RegisterAuthRoutes(public fiber.Router, protected fiber.Router, db *gorm.DB) {
-	// Public routes
-	public.Post("/auth/login", Login(db))
-	public.Post("/auth/refresh", Refresh(db))
+func RegisterAuthRoutes(router fiber.Router, db *gorm.DB) {
+	// Public routes with LoginLimiter
+	router.Post("/login", config.LoginLimiter(), Login(db))
 
-	// Password Reset Flow
-	public.Post("/auth/forgot-password", ForgotPasswordHandler(db))
-	public.Post("/auth/verify-otp", VerifyOTPHandler(db))
-	public.Post("/auth/reset-password", ResetPasswordHandler(db))
+	// Other Public routes
+	router.Post("/refresh", Refresh(db))
+	router.Post("/verify-email", VerifyEmail(db))
+	router.Post("/resend-otp", ResendOTP(db))
+
+	// Password Reset Flow (Public)
+	router.Post("/forgot-password", ForgotPasswordHandler(db))
+	router.Post("/verify-reset-otp", VerifyResetOTPHandler(db))
+	router.Post("/reset-password", ResetPasswordHandler(db))
 
 	// Protected routes
-	protected.Post("/auth/logout", Logout(db))
+	router.Post("/logout", middleware.JWTProtected(), Logout(db))
 }

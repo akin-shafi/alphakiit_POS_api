@@ -27,8 +27,8 @@ func JWTProtected() fiber.Handler {
 			}
 
 			// Handle optional OutletID
-			if outletID, ok := rawClaims["outlet_id"].(float64); ok {
-				uid := uint(outletID)
+			if outletIDFloat, ok := rawClaims["outlet_id"].(float64); ok {
+				uid := uint(outletIDFloat)
 				userClaims.OutletID = &uid
 			}
 
@@ -39,7 +39,7 @@ func JWTProtected() fiber.Handler {
 		},
 		ErrorHandler: func(c *fiber.Ctx, err error) error {
 			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-				"error": "Unauthorized",
+				"error": "jwt file says: Unauthorized",
 			})
 		},
 	})

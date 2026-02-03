@@ -60,6 +60,10 @@ func main() {
 
 	db := database.ConnectDB()
 
+	// if err := database.RunMigrations(db); err != nil {
+	// 	log.Fatalf("Failed to run migrations: %v", err)
+	// }
+
 	app := fiber.New()
 
 	// === Global Rate Limiter ===
@@ -96,11 +100,11 @@ func main() {
 
 	// === Routes ===
 	public := app.Group("/api/v1")
-	user.RegisterUserRoutes(public, db)
+	user.RegisterUserRoutes(public, app.Group("/api/v1", middleware.JWTProtected()), db)
 	onboarding.RegisterRoutes(public, db)
 
-	// Login-specific limiter for auth routes
-	auth.RegisterAuthRoutes(public.Group("/auth", config.LoginLimiter()), public.Group("/auth"), db)
+	// Auth routes
+	auth.RegisterAuthRoutes(public.Group("/auth"), db)
 
 	protected := app.Group("/api/v1",
 		middleware.JWTProtected(),
