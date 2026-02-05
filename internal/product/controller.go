@@ -2,6 +2,8 @@
 package product
 
 import (
+	"fmt"
+
 	"github.com/gofiber/fiber/v2"
 	"gorm.io/gorm"
 )
@@ -21,28 +23,25 @@ func ListHandler(db *gorm.DB) fiber.Handler {
 	return func(c *fiber.Ctx) error {
 		bizID := c.Locals("current_business_id").(uint)
 
-		// Optional filters
-		query := db.Where("business_id = ?", bizID)
+		var filters []func(*gorm.DB) *gorm.DB
 
 		if categoryIDStr := c.Query("category_id"); categoryIDStr != "" {
-			categoryID, err := c.ParamsInt("category_id")
-			if err == nil {
-				query = query.Where("category_id = ?", uint(categoryID))
+			var categoryID uint
+			fmt.Sscanf(categoryIDStr, "%d", &categoryID)
+			if categoryID > 0 {
+				filters = append(filters, WithCategory(categoryID))
 			}
 		}
 
 		if activeStr := c.Query("active"); activeStr != "" {
-			if activeStr == "false" {
-				query = query.Where("active = ?", false)
-			} else {
-				query = query.Where("active = ?", true)
-			}
-		} else {
-			query = query.Where("active = ?", true) // default: only active
+			active := activeStr != "false"
+			filters = append(filters, func(q *gorm.DB) *gorm.DB {
+				return q.Where("products.active = ?", active)
+			})
 		}
 
-		var products []Product
-		if err := query.Find(&products).Error; err != nil {
+		products, err := ListByBusiness(db, bizID, filters...)
+		if err != nil {
 			return fiber.ErrInternalServerError
 		}
 

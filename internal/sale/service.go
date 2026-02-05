@@ -21,16 +21,42 @@ type CompleteSaleRequest struct {
 	PaymentMethod string  `json:"payment_method" validate:"required"`
 	AmountPaid    float64 `json:"amount_paid" validate:"required,gte=0"`
 	Discount      float64 `json:"discount" validate:"gte=0"`
+	Tax           float64 `json:"tax"`
+}
+
+type CreateSaleRequest struct {
+	Items         []SaleItemRequest `json:"items" validate:"required,min=1"`
+	PaymentMethod string            `json:"payment_method" validate:"required"`
+	AmountPaid    float64           `json:"amount_paid" validate:"required,gte=0"`
+	Discount      float64           `json:"discount" validate:"gte=0"`
+	Tax           float64           `json:"tax"`
+	CustomerName  string            `json:"customer_name,omitempty"`
+	CustomerPhone string            `json:"customer_phone,omitempty"`
+}
+
+type SaleItemRequest struct {
+	ProductID uint `json:"product_id" validate:"required"`
+	Quantity  int  `json:"quantity" validate:"required,gt=0"`
 }
 
 type VoidSaleRequest struct {
 	Reason string `json:"reason" validate:"required,min=5"`
 }
 
+type CreateDraftRequest struct {
+	Items         []SaleItemRequest `json:"items"`
+	TableID       *uint             `json:"table_id"`
+	TableNumber   string            `json:"table_number"`
+	CustomerName  string            `json:"customer_name"`
+	CustomerPhone string            `json:"customer_phone"`
+	OrderType     string            `json:"order_type"`
+}
+
 type SaleFilters struct {
-	Status SaleStatus
-	From   string
-	To     string
+	Status        SaleStatus
+	From          string
+	To            string
+	PaymentMethod string
 }
 
 type SaleResult struct {
@@ -56,16 +82,66 @@ type DailyReport struct {
 	AverageSale       float64 `json:"average_sale"`
 }
 
-// CreateDraft starts a new sale
-func CreateDraft(db *gorm.DB, businessID, cashierID uint) (*Sale, error) {
+// CreateDraft starts a new sale with optional items and table info
+func CreateDraft(db *gorm.DB, businessID uint, tenantID string, cashierID uint, req CreateDraftRequest) (*Sale, error) {
+	tx := db.Begin()
+	defer tx.Rollback()
+
 	sale := &Sale{
-		BusinessID: businessID,
-		Status:     StatusDraft,
-		CashierID:  cashierID,
-		SaleDate:   time.Now(),
+		BusinessID:    businessID,
+		TenantID:      tenantID,
+		Status:        StatusDraft,
+		CashierID:     cashierID,
+		TableID:       req.TableID,
+		TableNumber:   req.TableNumber,
+		CustomerName:  req.CustomerName,
+		CustomerPhone: req.CustomerPhone,
+		OrderType:     req.OrderType,
+		SaleDate:      time.Now(),
 	}
 
-	return sale, db.Create(sale).Error
+	if sale.OrderType == "" {
+		sale.OrderType = "dine-in"
+	}
+
+	if err := tx.Create(sale).Error; err != nil {
+		return nil, err
+	}
+
+	var subtotal float64
+	for _, itemReq := range req.Items {
+		var prod product.Product
+		if err := tx.First(&prod, "id = ? AND business_id = ?", itemReq.ProductID, businessID).Error; err != nil {
+			continue // Skip if product not found
+		}
+
+		itemTotal := float64(itemReq.Quantity) * prod.Price
+		item := SaleItem{
+			SaleID:      sale.ID,
+			ProductID:   prod.ID,
+			ProductName: prod.Name,
+			Quantity:    itemReq.Quantity,
+			UnitPrice:   prod.Price,
+			TotalPrice:  itemTotal,
+		}
+
+		if err := tx.Create(&item).Error; err != nil {
+			return nil, err
+		}
+		subtotal += itemTotal
+	}
+
+	sale.Subtotal = subtotal
+	sale.Total = subtotal
+	if err := tx.Save(sale).Error; err != nil {
+		return nil, err
+	}
+
+	if err := tx.Commit().Error; err != nil {
+		return nil, err
+	}
+
+	return sale, nil
 }
 
 // AddItemToSale adds or updates quantity of a product in a sale
@@ -122,7 +198,10 @@ func CompleteSale(db *gorm.DB, saleID, businessID uint, req CompleteSaleRequest)
 		return nil, errors.New("sale not found or already completed")
 	}
 
-	if sale.Total-req.Discount > req.AmountPaid {
+	// Recalculate total with tax and discount
+	sale.Total = sale.Subtotal - req.Discount + req.Tax
+
+	if sale.Total > req.AmountPaid {
 		return nil, errors.New("insufficient payment")
 	}
 
@@ -133,10 +212,20 @@ func CompleteSale(db *gorm.DB, saleID, businessID uint, req CompleteSaleRequest)
 		}
 	}
 
+	now := time.Now()
 	sale.Status = StatusCompleted
 	sale.PaymentMethod = req.PaymentMethod
 	sale.Discount = req.Discount
-	sale.SyncedAt = &time.Time{} // mark as synced
+	sale.Tax = req.Tax
+	sale.SyncedAt = &now // mark as synced
+
+	// ... inside CompleteSale before saving
+	// Assign daily sequence number
+	seq, err := getNextDailySequence(tx, businessID)
+	if err != nil {
+		return nil, err
+	}
+	sale.DailySequence = seq
 
 	if err := tx.Save(&sale).Error; err != nil {
 		return nil, err
@@ -149,10 +238,134 @@ func CompleteSale(db *gorm.DB, saleID, businessID uint, req CompleteSaleRequest)
 	return &SaleReceipt{
 		Sale:        &sale,
 		Items:       sale.SaleItems,
-		Change:      req.AmountPaid - (sale.Total - req.Discount),
-		ReceiptNo:   generateReceiptNo(sale.ID),
+		Change:      req.AmountPaid - sale.Total,
+		ReceiptNo:   generateReceiptNo(sale.DailySequence),
 		GeneratedAt: time.Now(),
 	}, nil
+}
+
+// CreateSale creates and completes a sale in one atomic operation (One-Shot)
+func CreateSale(db *gorm.DB, businessID uint, tenantID string, cashierID uint, req CreateSaleRequest) (*SaleReceipt, error) {
+	tx := db.Begin()
+	defer tx.Rollback()
+
+	now := time.Now()
+
+	// 1. Get Next Sequence
+	seq, err := getNextDailySequence(tx, businessID)
+	if err != nil {
+		return nil, err
+	}
+
+	// 2. Create Sale Header
+	sale := &Sale{
+		BusinessID:    businessID,
+		TenantID:      tenantID,
+		CashierID:     cashierID,
+		Status:        StatusCompleted, // Direct to completed
+		PaymentMethod: req.PaymentMethod,
+		Discount:      req.Discount,
+		Tax:           req.Tax,
+		CustomerName:  req.CustomerName,
+		CustomerPhone: req.CustomerPhone,
+		SaleDate:      now,
+		DailySequence: seq,
+		Subtotal:      0.0,
+		Total:         0.0,
+		SyncedAt:      &now,
+	}
+
+	if err := tx.Create(sale).Error; err != nil {
+		return nil, err
+	}
+
+	var subtotal float64
+	var saleItems []SaleItem
+
+	// 3. Process Items
+	for _, itemReq := range req.Items {
+		var prod product.Product
+		if err := tx.First(&prod, "id = ? AND business_id = ?", itemReq.ProductID, businessID).Error; err != nil {
+			return nil, fmt.Errorf("product %d not found", itemReq.ProductID)
+		}
+
+		// Inventory check & deduction
+		if err := inventory.AdjustStock(tx, prod.ID, businessID, -itemReq.Quantity); err != nil {
+			return nil, fmt.Errorf("insufficient stock for %s: %w", prod.Name, err)
+		}
+
+		itemPrice := prod.Price
+		itemTotal := float64(itemReq.Quantity) * itemPrice
+
+		saleItem := SaleItem{
+			SaleID:      sale.ID,
+			ProductID:   prod.ID,
+			ProductName: prod.Name,
+			Quantity:    itemReq.Quantity,
+			UnitPrice:   itemPrice,
+			TotalPrice:  itemTotal,
+		}
+
+		if err := tx.Create(&saleItem).Error; err != nil {
+			return nil, err
+		}
+
+		subtotal += itemTotal
+		saleItems = append(saleItems, saleItem)
+	}
+
+	// 4. Finalize Totals
+	sale.Subtotal = subtotal
+	sale.Total = subtotal - req.Discount + req.Tax
+
+	if sale.Total > req.AmountPaid {
+		return nil, errors.New("insufficient payment")
+	}
+
+	if err := tx.Save(sale).Error; err != nil {
+		return nil, err
+	}
+
+	if err := tx.Commit().Error; err != nil {
+		return nil, err
+	}
+
+	return &SaleReceipt{
+		Sale:        sale,
+		Items:       saleItems,
+		Change:      req.AmountPaid - sale.Total,
+		ReceiptNo:   generateReceiptNo(sale.DailySequence),
+		GeneratedAt: time.Now(),
+	}, nil
+}
+
+// ... existing code ...
+
+func generateReceiptNo(sequence int) string {
+	// Format: YYYYMMDD-SEQUENCE (e.g. 20260201-001)
+	return time.Now().Format("20060102") + "-" + fmt.Sprintf("%03d", sequence)
+}
+
+func getNextDailySequence(tx *gorm.DB, businessID uint) (int, error) {
+	var lastSale Sale
+
+	startOfDay := time.Now().Truncate(24 * time.Hour) // 00:00:00
+	endOfDay := startOfDay.Add(24 * time.Hour)        // Next day 00:00:00
+
+	// Get max daily_sequence for today including COMPLETED and VOIDED sales (to prevent reuse)
+	err := tx.Model(&Sale{}).
+		Where("business_id = ? AND created_at >= ? AND created_at < ? AND status IN ?",
+			businessID, startOfDay, endOfDay, []SaleStatus{StatusCompleted, StatusVoided}).
+		Order("daily_sequence DESC").
+		First(&lastSale).Error
+
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return 1, nil // First sale of the day
+	} else if err != nil {
+		return 0, err
+	}
+
+	return lastSale.DailySequence + 1, nil
 }
 
 func HoldSale(db *gorm.DB, saleID, businessID uint) (*Sale, error) {
@@ -209,10 +422,6 @@ func recalculateSaleTotals(db *gorm.DB, sale *Sale) error {
 	return db.Save(sale).Error
 }
 
-func generateReceiptNo(saleID uint) string {
-	return time.Now().Format("20060102") + "-" + fmt.Sprintf("%06d", saleID)
-}
-
 // RemoveItemFromSale removes a specific sale item and recalculates totals
 func RemoveItemFromSale(db *gorm.DB, saleID, itemID, businessID uint) (*SaleResult, error) {
 	var sale Sale
@@ -266,15 +475,43 @@ func ListHeldSales(db *gorm.DB, businessID, cashierID uint) ([]Sale, error) {
 func ListSales(db *gorm.DB, businessID uint, filters SaleFilters) ([]Sale, error) {
 	var sales []Sale
 	query := db.Where("business_id = ?", businessID)
+
 	if filters.Status != "" {
 		query = query.Where("status = ?", filters.Status)
 	}
+
+	if filters.PaymentMethod != "" {
+		query = query.Where("payment_method = ?", filters.PaymentMethod)
+	}
+
 	if filters.From != "" {
-		query = query.Where("sale_date >= ?", filters.From)
+		// Try to parse date to ensure we compare correctly (timestamp vs date string)
+		if t, err := time.Parse("2006-01-02", filters.From); err == nil {
+			startOfDay := time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, t.Location())
+			query = query.Where("sale_date >= ?", startOfDay)
+		} else {
+			query = query.Where("sale_date >= ?", filters.From)
+		}
 	}
+
 	if filters.To != "" {
-		query = query.Where("sale_date <= ?", filters.To)
+		// Include the entire end day
+		if t, err := time.Parse("2006-01-02", filters.To); err == nil {
+			endOfDay := time.Date(t.Year(), t.Month(), t.Day(), 23, 59, 59, 999999999, t.Location())
+			query = query.Where("sale_date <= ?", endOfDay)
+		} else {
+			query = query.Where("sale_date <= ?", filters.To)
+		}
 	}
+
+	// Order by latest first
+	query = query.Order("sale_date DESC")
+
+	// Select sales.* and alias the concatenated name
+	query = query.Select("sales.*, users.first_name || ' ' || users.last_name as cashier_name").
+		Joins("LEFT JOIN users ON users.id = sales.cashier_id").
+		Preload("SaleItems") // Load sale items with product names
+
 	if err := query.Find(&sales).Error; err != nil {
 		return nil, err
 	}
@@ -283,7 +520,9 @@ func ListSales(db *gorm.DB, businessID uint, filters SaleFilters) ([]Sale, error
 
 func GetSaleDetails(db *gorm.DB, saleID, businessID uint) (*SaleResult, error) {
 	var sale Sale
-	if err := db.First(&sale, "id = ? AND business_id = ?", saleID, businessID).Error; err != nil {
+	if err := db.Select("sales.*, users.first_name || ' ' || users.last_name as cashier_name").
+		Joins("LEFT JOIN users ON users.id = sales.cashier_id").
+		First(&sale, "sales.id = ? AND sales.business_id = ?", saleID, businessID).Error; err != nil {
 		return nil, errors.New("sale not found")
 	}
 	var items []SaleItem

@@ -16,22 +16,23 @@
 package middleware
 
 import (
+	"pos-fiber-app/internal/types"
+
 	"github.com/gofiber/fiber/v2"
-	"github.com/golang-jwt/jwt/v5"
 )
 
 func TenantMiddleware() fiber.Handler {
 	return func(c *fiber.Ctx) error {
-		token, ok := c.Locals("user").(*jwt.Token)
+		userClaims, ok := c.Locals("user").(*types.UserClaims)
 		if !ok {
 			return fiber.ErrUnauthorized
 		}
 
-		claims := token.Claims.(jwt.MapClaims)
-		tenantID := claims["tenant_id"].(string)
+		tenantID := userClaims.TenantID
 
+		// If header is provided, verify it matches the token (extra security)
 		headerTenant := c.Get("X-Tenant-ID")
-		if headerTenant == "" || headerTenant != tenantID {
+		if headerTenant != "" && headerTenant != tenantID {
 			return fiber.NewError(fiber.StatusForbidden, "tenant mismatch")
 		}
 

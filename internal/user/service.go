@@ -16,6 +16,13 @@ func NewUserService(db *gorm.DB) *UserService {
 
 // Create a new user under a tenant
 func (s *UserService) Create(user *User) error {
+	// Check if email already exists
+	var count int64
+	s.db.Model(&User{}).Where("email = ?", user.Email).Count(&count)
+	if count > 0 {
+		return errors.New("email already in use")
+	}
+
 	if user.Password != "" {
 		hashed, err := HashPassword(user.Password)
 		if err != nil {
@@ -58,7 +65,12 @@ func (s *UserService) Update(id uint, data *User) (*User, error) {
 	if data.LastName != "" {
 		user.LastName = data.LastName
 	}
-	if data.Email != "" {
+	if data.Email != "" && data.Email != user.Email {
+		var count int64
+		s.db.Model(&User{}).Where("email = ? AND id != ?", data.Email, id).Count(&count)
+		if count > 0 {
+			return nil, errors.New("email already in use")
+		}
 		user.Email = data.Email
 	}
 	if data.Role != "" {
@@ -66,6 +78,13 @@ func (s *UserService) Update(id uint, data *User) (*User, error) {
 	}
 	if data.OutletID != nil {
 		user.OutletID = data.OutletID
+	}
+	if data.Password != "" {
+		hashed, err := HashPassword(data.Password)
+		if err != nil {
+			return nil, err
+		}
+		user.Password = hashed
 	}
 
 	if err := s.db.Save(user).Error; err != nil {

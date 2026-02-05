@@ -2,8 +2,9 @@
 package sale
 
 import (
-	// "time"
+	"strings"
 
+	"fmt"
 	"pos-fiber-app/internal/types"
 
 	"github.com/gofiber/fiber/v2"
@@ -11,14 +12,20 @@ import (
 )
 
 func handleSaleError(err error) error {
-	switch err.Error() {
-	case "sale not found or already completed":
-		return fiber.NewError(fiber.StatusNotFound, err.Error())
-	case "insufficient stock", "insufficient payment":
-		return fiber.NewError(fiber.StatusUnprocessableEntity, err.Error())
-	default:
-		return fiber.ErrInternalServerError
+	msg := err.Error()
+	fmt.Printf("[SALE ERROR DEBUG] %s\n", msg)
+
+	if strings.Contains(msg, "insufficient stock") {
+		return fiber.NewError(fiber.StatusUnprocessableEntity, msg)
 	}
+	if strings.Contains(msg, "insufficient payment") {
+		return fiber.NewError(fiber.StatusUnprocessableEntity, msg)
+	}
+	if strings.Contains(msg, "not found") {
+		return fiber.NewError(fiber.StatusNotFound, msg)
+	}
+
+	return fiber.NewError(fiber.StatusInternalServerError, msg)
 }
 
 // CreateDraftSale godoc
@@ -35,12 +42,52 @@ func CreateDraftHandler(db *gorm.DB) fiber.Handler {
 		bizID := c.Locals("current_business_id").(uint)
 		claims := c.Locals("user").(*types.UserClaims)
 
-		sale, err := CreateDraft(db, bizID, claims.UserID)
+		var req CreateDraftRequest
+		if err := c.BodyParser(&req); err != nil {
+			// If body parser fails, we can still proceed with an empty draft
+			// but for now let's be strict if the user sent something
+			if len(c.Body()) > 0 && string(c.Body()) != "{}" {
+				return fiber.NewError(fiber.StatusBadRequest, "invalid request body")
+			}
+		}
+
+		sale, err := CreateDraft(db, bizID, claims.TenantID, claims.UserID, req)
 		if err != nil {
 			return fiber.ErrInternalServerError
 		}
 
 		return c.Status(fiber.StatusCreated).JSON(sale)
+	}
+}
+
+// CreateSaleHandler godoc
+// @Summary Create and complete a sale in one shot
+// @Description Atomic creation of sale header, items, and inventory deduction
+// @Tags Sales
+// @Security BearerAuth
+// @Accept json
+// @Produce json
+// @Param body body CreateSaleRequest true "Sale details including items and payment"
+// @Success 201 {object} SaleReceipt
+// @Failure 400 {object} map[string]string
+// @Failure 422 {object} map[string]string "Insufficient stock or payment"
+// @Router /sales [post]
+func CreateSaleHandler(db *gorm.DB) fiber.Handler {
+	return func(c *fiber.Ctx) error {
+		bizID := c.Locals("current_business_id").(uint)
+		claims := c.Locals("user").(*types.UserClaims)
+
+		var req CreateSaleRequest
+		if err := c.BodyParser(&req); err != nil {
+			return fiber.NewError(fiber.StatusBadRequest, "invalid payload")
+		}
+
+		receipt, err := CreateSale(db, bizID, claims.TenantID, claims.UserID, req)
+		if err != nil {
+			return handleSaleError(err)
+		}
+
+		return c.Status(fiber.StatusCreated).JSON(receipt)
 	}
 }
 
@@ -239,6 +286,7 @@ func VoidSaleHandler(db *gorm.DB) fiber.Handler {
 // @Param status query string false "Filter by status (DRAFT, COMPLETED, HELD, VOIDED)"
 // @Param from query string false "From date (YYYY-MM-DD)"
 // @Param to query string false "To date (YYYY-MM-DD)"
+// @Param payment_method query string false "Filter by payment method (CASH, CARD, TRANSFER, etc)"
 // @Success 200 {array} Sale
 // @Router /sales [get]
 func ListSalesHandler(db *gorm.DB) fiber.Handler {
@@ -246,9 +294,10 @@ func ListSalesHandler(db *gorm.DB) fiber.Handler {
 		bizID := c.Locals("current_business_id").(uint)
 
 		filters := SaleFilters{
-			Status: SaleStatus(c.Query("status")),
-			From:   c.Query("from"),
-			To:     c.Query("to"),
+			Status:        SaleStatus(c.Query("status")),
+			From:          c.Query("from"),
+			To:            c.Query("to"),
+			PaymentMethod: c.Query("payment_method"),
 		}
 
 		sales, err := ListSales(db, bizID, filters)

@@ -17,8 +17,11 @@ type Product struct {
 	Price       float64        `gorm:"type:decimal(10,2)" json:"price"`
 	Cost        float64        `gorm:"type:decimal(10,2)" json:"cost,omitempty"`
 	ImageURL    string         `json:"image_url,omitempty"`
+	Stock       int            `json:"stock"`
+	MinStock    int            `json:"min_stock"`
+	Barcode     string         `gorm:"size:100" json:"barcode,omitempty"`
 	Active      bool           `json:"active" default:"true"`
-	CreatedAt   time.Time      `json:"created_at"`
-	UpdatedAt   time.Time      `json:"updated_at"`
+	CreatedAt   time.Time      `json:"-"`
+	UpdatedAt   time.Time      `json:"-"`
 	DeletedAt   gorm.DeletedAt `gorm:"index" json:"-"`
 }

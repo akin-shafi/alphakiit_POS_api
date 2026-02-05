@@ -17,7 +17,7 @@ const docTemplate = `{
     "paths": {
         "/auth/forgot-password": {
             "post": {
-                "description": "Send a 6-digit OTP to the user's email for password reset",
+                "description": "Generates a password reset OTP and sends it to the user's email",
                 "consumes": [
                     "application/json"
                 ],
@@ -27,10 +27,10 @@ const docTemplate = `{
                 "tags": [
                     "Auth"
                 ],
-                "summary": "Request password reset OTP",
+                "summary": "Request Password Reset",
                 "parameters": [
                     {
-                        "description": "Email address",
+                        "description": "Email payload",
                         "name": "body",
                         "in": "body",
                         "required": true,
@@ -46,7 +46,7 @@ const docTemplate = `{
                 ],
                 "responses": {
                     "200": {
-                        "description": "message: OTP sent",
+                        "description": "OK",
                         "schema": {
                             "type": "object",
                             "additionalProperties": {
@@ -62,22 +62,13 @@ const docTemplate = `{
                                 "type": "string"
                             }
                         }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
                     }
                 }
             }
         },
         "/auth/login": {
             "post": {
-                "description": "Authenticate a user and return access + refresh tokens",
+                "description": "Authenticate user and return tokens",
                 "consumes": [
                     "application/json"
                 ],
@@ -87,10 +78,10 @@ const docTemplate = `{
                 "tags": [
                     "Auth"
                 ],
-                "summary": "Login",
+                "summary": "User Login",
                 "parameters": [
                     {
-                        "description": "Login payload",
+                        "description": "Login credentials",
                         "name": "body",
                         "in": "body",
                         "required": true,
@@ -104,9 +95,7 @@ const docTemplate = `{
                         "description": "OK",
                         "schema": {
                             "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
+                            "additionalProperties": true
                         }
                     },
                     "400": {
@@ -117,28 +106,6 @@ const docTemplate = `{
                                 "type": "string"
                             }
                         }
-                    }
-                }
-            }
-        },
-        "/auth/logout": {
-            "post": {
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "description": "Delete refresh token and logout user",
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Auth"
-                ],
-                "summary": "Logout",
-                "responses": {
-                    "204": {
-                        "description": "No Content"
                     },
                     "401": {
                         "description": "Unauthorized",
@@ -152,9 +119,9 @@ const docTemplate = `{
                 }
             }
         },
-        "/auth/refresh": {
+        "/auth/resend-otp": {
             "post": {
-                "description": "Validate refresh token and issue new access token",
+                "description": "Generates a new OTP and sends it to the user's email",
                 "consumes": [
                     "application/json"
                 ],
@@ -164,17 +131,80 @@ const docTemplate = `{
                 "tags": [
                     "Auth"
                 ],
-                "summary": "Refresh Access Token",
+                "summary": "Resend Verification OTP",
                 "parameters": [
                     {
-                        "description": "Refresh token payload",
+                        "description": "Email payload",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/auth.ResendOTPRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/auth/reset-password": {
+            "post": {
+                "description": "Resets the user's password using a valid OTP",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Auth"
+                ],
+                "summary": "Reset Password",
+                "parameters": [
+                    {
+                        "description": "Reset payload",
                         "name": "body",
                         "in": "body",
                         "required": true,
                         "schema": {
                             "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
+                            "properties": {
+                                "email": {
+                                    "type": "string"
+                                },
+                                "new_password": {
+                                    "type": "string"
+                                },
+                                "otp": {
+                                    "type": "string"
+                                }
                             }
                         }
                     }
@@ -197,13 +227,22 @@ const docTemplate = `{
                                 "type": "string"
                             }
                         }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
                     }
                 }
             }
         },
-        "/auth/verify-otp": {
+        "/auth/verify-email": {
             "post": {
-                "description": "Verify the OTP sent to the user's email",
+                "description": "Verifies the OTP and activates the user account",
                 "consumes": [
                     "application/json"
                 ],
@@ -213,10 +252,63 @@ const docTemplate = `{
                 "tags": [
                     "Auth"
                 ],
-                "summary": "Verify OTP",
+                "summary": "Verify Email OTP",
                 "parameters": [
                     {
-                        "description": "Email and OTP",
+                        "description": "Verification payload",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/auth.VerifyEmailRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/auth/verify-reset-otp": {
+            "post": {
+                "description": "Checks if the password reset OTP is valid",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Auth"
+                ],
+                "summary": "Verify Reset OTP",
+                "parameters": [
+                    {
+                        "description": "Verification payload",
                         "name": "body",
                         "in": "body",
                         "required": true,
@@ -235,7 +327,7 @@ const docTemplate = `{
                 ],
                 "responses": {
                     "200": {
-                        "description": "message: OTP verified",
+                        "description": "OK",
                         "schema": {
                             "type": "object",
                             "additionalProperties": {
@@ -244,7 +336,7 @@ const docTemplate = `{
                         }
                     },
                     "400": {
-                        "description": "error: Invalid or expired OTP",
+                        "description": "Bad Request",
                         "schema": {
                             "type": "object",
                             "additionalProperties": {
@@ -745,9 +837,7 @@ const docTemplate = `{
                         "description": "Business onboarded successfully",
                         "schema": {
                             "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
+                            "additionalProperties": true
                         }
                     },
                     "400": {
@@ -1238,6 +1328,12 @@ const docTemplate = `{
                         "description": "To date (YYYY-MM-DD)",
                         "name": "to",
                         "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter by payment method (CASH, CARD, TRANSFER, etc)",
+                        "name": "payment_method",
+                        "in": "query"
                     }
                 ],
                 "responses": {
@@ -1247,6 +1343,61 @@ const docTemplate = `{
                             "type": "array",
                             "items": {
                                 "$ref": "#/definitions/sale.Sale"
+                            }
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Atomic creation of sale header, items, and inventory deduction",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Sales"
+                ],
+                "summary": "Create and complete a sale in one shot",
+                "parameters": [
+                    {
+                        "description": "Sale details including items and payment",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/sale.CreateSaleRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/sale.SaleReceipt"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Insufficient stock or payment",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
                             }
                         }
                     }
@@ -1731,6 +1882,125 @@ const docTemplate = `{
                 }
             }
         },
+        "/subscription/plans": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Retrieve a list of all plans excluding the hidden trial plan",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Subscription"
+                ],
+                "summary": "Get available subscription plans",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/subscription.SubscriptionPlan"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/subscription/status": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Get the current subscription details for the authorized business",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Subscription"
+                ],
+                "summary": "Get business subscription status",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/subscription.Subscription"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/subscription/subscribe": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Verify a Paystack transaction and activate a subscription plan",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Subscription"
+                ],
+                "summary": "Subscribe to a plan",
+                "parameters": [
+                    {
+                        "description": "Plan details and Paystack reference",
+                        "name": "payload",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "type": "object"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/subscription.Subscription"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/terminals/register": {
             "post": {
                 "security": [
@@ -2082,12 +2352,29 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "email": {
-                    "type": "string",
-                    "example": "admin@biz.com"
+                    "type": "string"
                 },
                 "password": {
-                    "type": "string",
-                    "example": "password"
+                    "type": "string"
+                }
+            }
+        },
+        "auth.ResendOTPRequest": {
+            "type": "object",
+            "properties": {
+                "email": {
+                    "type": "string"
+                }
+            }
+        },
+        "auth.VerifyEmailRequest": {
+            "type": "object",
+            "properties": {
+                "code": {
+                    "type": "string"
+                },
+                "email": {
+                    "type": "string"
                 }
             }
         },
@@ -2100,16 +2387,22 @@ const docTemplate = `{
                 "city": {
                     "type": "string"
                 },
-                "created_at": {
-                    "type": "string"
-                },
                 "currency": {
                     "$ref": "#/definitions/common.Currency"
                 },
                 "id": {
                     "type": "integer"
                 },
+                "is_seeded": {
+                    "type": "boolean"
+                },
                 "name": {
+                    "type": "string"
+                },
+                "subscription_expiry": {
+                    "type": "string"
+                },
+                "subscription_status": {
                     "type": "string"
                 },
                 "tenant_id": {
@@ -2117,9 +2410,6 @@ const docTemplate = `{
                 },
                 "type": {
                     "$ref": "#/definitions/common.BusinessType"
-                },
-                "updated_at": {
-                    "type": "string"
                 }
             }
         },
@@ -2135,7 +2425,9 @@ const docTemplate = `{
                 "HOTEL",
                 "PHARMACY",
                 "CLINIC",
-                "LPG_STATION"
+                "LPG_STATION",
+                "BOUTIQUE",
+                "OTHER"
             ],
             "x-enum-varnames": [
                 "TypeRestaurant",
@@ -2147,7 +2439,9 @@ const docTemplate = `{
                 "TypeHotel",
                 "TypePharmacy",
                 "TypeClinic",
-                "TypeLPGStation"
+                "TypeLPGStation",
+                "TypeBoutique",
+                "TypeOther"
             ]
         },
         "business.CreateBusinessRequest": {
@@ -2192,7 +2486,9 @@ const docTemplate = `{
                         "RETAIL",
                         "HOTEL",
                         "PHARMACY",
-                        "CLINIC"
+                        "CLINIC",
+                        "BOUTIQUE",
+                        "OTHER"
                     ],
                     "allOf": [
                         {
@@ -2264,7 +2560,9 @@ const docTemplate = `{
                         "RETAIL",
                         "HOTEL",
                         "PHARMACY",
-                        "CLINIC"
+                        "CLINIC",
+                        "BOUTIQUE",
+                        "OTHER"
                     ],
                     "allOf": [
                         {
@@ -2280,9 +2578,6 @@ const docTemplate = `{
                 "business_id": {
                     "type": "integer"
                 },
-                "created_at": {
-                    "type": "string"
-                },
                 "description": {
                     "type": "string"
                 },
@@ -2290,9 +2585,6 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "name": {
-                    "type": "string"
-                },
-                "updated_at": {
                     "type": "string"
                 }
             }
@@ -2309,7 +2601,9 @@ const docTemplate = `{
                 "HOTEL",
                 "PHARMACY",
                 "CLINIC",
-                "LPG_STATION"
+                "LPG_STATION",
+                "BOUTIQUE",
+                "OTHER"
             ],
             "x-enum-varnames": [
                 "TypeRestaurant",
@@ -2321,7 +2615,9 @@ const docTemplate = `{
                 "TypeHotel",
                 "TypePharmacy",
                 "TypeClinic",
-                "TypeLPGStation"
+                "TypeLPGStation",
+                "TypeBoutique",
+                "TypeOther"
             ]
         },
         "common.Currency": {
@@ -2402,6 +2698,7 @@ const docTemplate = `{
                     "required": [
                         "address",
                         "city",
+                        "currency",
                         "name",
                         "type"
                     ],
@@ -2410,6 +2707,9 @@ const docTemplate = `{
                             "type": "string"
                         },
                         "city": {
+                            "type": "string"
+                        },
+                        "currency": {
                             "type": "string"
                         },
                         "name": {
@@ -2442,7 +2742,8 @@ const docTemplate = `{
                             "minLength": 2
                         },
                         "password": {
-                            "type": "string"
+                            "type": "string",
+                            "minLength": 4
                         }
                     }
                 }
@@ -2492,6 +2793,9 @@ const docTemplate = `{
                 "price"
             ],
             "properties": {
+                "barcode": {
+                    "type": "string"
+                },
                 "category_id": {
                     "type": "integer"
                 },
@@ -2504,6 +2808,9 @@ const docTemplate = `{
                 },
                 "image_url": {
                     "type": "string"
+                },
+                "min_stock": {
+                    "type": "integer"
                 },
                 "name": {
                     "type": "string",
@@ -2514,6 +2821,9 @@ const docTemplate = `{
                 },
                 "sku": {
                     "type": "string"
+                },
+                "stock": {
+                    "type": "integer"
                 }
             }
         },
@@ -2524,6 +2834,9 @@ const docTemplate = `{
                     "type": "boolean",
                     "default": true
                 },
+                "barcode": {
+                    "type": "string"
+                },
                 "business_id": {
                     "type": "integer"
                 },
@@ -2532,9 +2845,6 @@ const docTemplate = `{
                 },
                 "cost": {
                     "type": "number"
-                },
-                "created_at": {
-                    "type": "string"
                 },
                 "description": {
                     "type": "string"
@@ -2545,6 +2855,9 @@ const docTemplate = `{
                 "image_url": {
                     "type": "string"
                 },
+                "min_stock": {
+                    "type": "integer"
+                },
                 "name": {
                     "type": "string"
                 },
@@ -2554,8 +2867,8 @@ const docTemplate = `{
                 "sku": {
                     "type": "string"
                 },
-                "updated_at": {
-                    "type": "string"
+                "stock": {
+                    "type": "integer"
                 }
             }
         },
@@ -2564,6 +2877,9 @@ const docTemplate = `{
             "properties": {
                 "active": {
                     "type": "boolean"
+                },
+                "barcode": {
+                    "type": "string"
                 },
                 "category_id": {
                     "type": "integer"
@@ -2578,6 +2894,9 @@ const docTemplate = `{
                 "image_url": {
                     "type": "string"
                 },
+                "min_stock": {
+                    "type": "integer"
+                },
                 "name": {
                     "type": "string"
                 },
@@ -2586,6 +2905,9 @@ const docTemplate = `{
                 },
                 "sku": {
                     "type": "string"
+                },
+                "stock": {
+                    "type": "integer"
                 }
             }
         },
@@ -2618,6 +2940,40 @@ const docTemplate = `{
                 "discount": {
                     "type": "number",
                     "minimum": 0
+                },
+                "payment_method": {
+                    "type": "string"
+                }
+            }
+        },
+        "sale.CreateSaleRequest": {
+            "type": "object",
+            "required": [
+                "amount_paid",
+                "items",
+                "payment_method"
+            ],
+            "properties": {
+                "amount_paid": {
+                    "type": "number",
+                    "minimum": 0
+                },
+                "customer_name": {
+                    "type": "string"
+                },
+                "customer_phone": {
+                    "type": "string"
+                },
+                "discount": {
+                    "type": "number",
+                    "minimum": 0
+                },
+                "items": {
+                    "type": "array",
+                    "minItems": 1,
+                    "items": {
+                        "$ref": "#/definitions/sale.SaleItemRequest"
+                    }
                 },
                 "payment_method": {
                     "type": "string"
@@ -2659,6 +3015,10 @@ const docTemplate = `{
                 "cashier_id": {
                     "type": "integer"
                 },
+                "cashier_name": {
+                    "description": "Populated manually or via join",
+                    "type": "string"
+                },
                 "created_at": {
                     "type": "string"
                 },
@@ -2667,6 +3027,10 @@ const docTemplate = `{
                 },
                 "customer_phone": {
                     "type": "string"
+                },
+                "daily_sequence": {
+                    "description": "resets daily",
+                    "type": "integer"
                 },
                 "discount": {
                     "type": "number"
@@ -2739,6 +3103,21 @@ const docTemplate = `{
                 "unit_price": {
                     "description": "snapshot",
                     "type": "number"
+                }
+            }
+        },
+        "sale.SaleItemRequest": {
+            "type": "object",
+            "required": [
+                "product_id",
+                "quantity"
+            ],
+            "properties": {
+                "product_id": {
+                    "type": "integer"
+                },
+                "quantity": {
+                    "type": "integer"
                 }
             }
         },
@@ -2851,6 +3230,103 @@ const docTemplate = `{
                 }
             }
         },
+        "subscription.PlanType": {
+            "type": "string",
+            "enum": [
+                "TRIAL",
+                "MONTHLY",
+                "QUARTERLY",
+                "ANNUAL"
+            ],
+            "x-enum-varnames": [
+                "PlanTrial",
+                "PlanMonthly",
+                "PlanQuarterly",
+                "PlanAnnual"
+            ]
+        },
+        "subscription.Subscription": {
+            "type": "object",
+            "properties": {
+                "amount_paid": {
+                    "type": "number"
+                },
+                "auto_renew": {
+                    "type": "boolean"
+                },
+                "business_id": {
+                    "type": "integer"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "end_date": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "payment_method": {
+                    "type": "string"
+                },
+                "plan_type": {
+                    "$ref": "#/definitions/subscription.PlanType"
+                },
+                "start_date": {
+                    "type": "string"
+                },
+                "status": {
+                    "$ref": "#/definitions/subscription.SubscriptionStatus"
+                },
+                "transaction_reference": {
+                    "type": "string"
+                },
+                "updated_at": {
+                    "type": "string"
+                }
+            }
+        },
+        "subscription.SubscriptionPlan": {
+            "type": "object",
+            "properties": {
+                "currency": {
+                    "type": "string"
+                },
+                "duration_days": {
+                    "type": "integer"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "price": {
+                    "type": "number"
+                },
+                "product_limit": {
+                    "type": "integer"
+                },
+                "type": {
+                    "$ref": "#/definitions/subscription.PlanType"
+                },
+                "user_limit": {
+                    "type": "integer"
+                }
+            }
+        },
+        "subscription.SubscriptionStatus": {
+            "type": "string",
+            "enum": [
+                "ACTIVE",
+                "EXPIRED",
+                "CANCELLED",
+                "GRACE_PERIOD"
+            ],
+            "x-enum-varnames": [
+                "StatusActive",
+                "StatusExpired",
+                "StatusCancelled",
+                "StatusGracePeriod"
+            ]
+        },
         "terminal.Terminal": {
             "type": "object",
             "properties": {
@@ -2880,36 +3356,32 @@ const docTemplate = `{
                 "active": {
                     "type": "boolean"
                 },
-                "createdAt": {
-                    "type": "string"
-                },
                 "email": {
-                    "description": "Email     string ` + "`" + `gorm:\"uniqueIndex\"` + "`" + `",
                     "type": "string"
                 },
-                "firstName": {
+                "first_name": {
                     "type": "string"
                 },
                 "id": {
                     "type": "integer"
                 },
-                "lastName": {
+                "is_verified": {
+                    "type": "boolean"
+                },
+                "last_name": {
                     "type": "string"
                 },
-                "outletID": {
+                "outlet_id": {
                     "type": "integer"
                 },
-                "password": {
+                "phone": {
                     "type": "string"
                 },
                 "role": {
                     "description": "OWNER / MANAGER / CASHIER",
                     "type": "string"
                 },
-                "tenantID": {
-                    "type": "string"
-                },
-                "updatedAt": {
+                "tenant_id": {
                     "type": "string"
                 }
             }

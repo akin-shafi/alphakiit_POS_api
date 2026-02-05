@@ -24,6 +24,10 @@ import (
 	"pos-fiber-app/internal/outlet"
 	"pos-fiber-app/internal/product"
 	"pos-fiber-app/internal/sale"
+	"pos-fiber-app/internal/seed"
+	"pos-fiber-app/internal/shift" // NEW: Shift management
+	"pos-fiber-app/internal/subscription"
+	"pos-fiber-app/internal/table" // NEW: Table management
 	"pos-fiber-app/internal/terminal"
 	"pos-fiber-app/internal/user"
 	"pos-fiber-app/pkg/database"
@@ -60,6 +64,10 @@ func main() {
 
 	db := database.ConnectDB()
 
+	if err := database.RunMigrations(db); err != nil {
+		log.Fatalf("Failed to run migrations: %v", err)
+	}
+
 	app := fiber.New()
 
 	// === Global Rate Limiter ===
@@ -95,30 +103,46 @@ func main() {
 	setDynamicSwaggerConfig()
 
 	// === Routes ===
-	public := app.Group("/api/v1")
-	user.RegisterUserRoutes(public, db)
-	onboarding.RegisterRoutes(public, db)
+	apiV1 := app.Group("/api/v1")
 
-	// Login-specific limiter for auth routes
-	auth.RegisterAuthRoutes(public.Group("/auth", config.LoginLimiter()), public.Group("/auth"), db)
+	// 1. Public Routes
+	// Onboarding (Public)
+	onboarding.RegisterRoutes(apiV1, db)
 
-	protected := app.Group("/api/v1",
+	// Auth (mostly Public, Logout is Protected inside RegisterAuthRoutes)
+	auth.RegisterAuthRoutes(apiV1.Group("/auth"), db)
+
+	// User (Public part: create user)
+	// We pass the public group and a specially created protected user group
+	protectedUserGroup := apiV1.Group("", middleware.JWTProtected(), middleware.TenantMiddleware())
+	user.RegisterUserRoutes(apiV1, protectedUserGroup, db)
+
+	// 2. Protected Routes (JWT + Tenant)
+	protected := apiV1.Group("",
 		middleware.JWTProtected(),
 		middleware.TenantMiddleware(),
 	)
+
 	business.RegisterBusinessRoutes(protected, db)
 	outlet.RegisterRoutes(protected, db)
 	terminal.RegisterRoutes(protected, db)
 
-	businessScoped := app.Group("/api/v1",
-		middleware.JWTProtected(),
-		middleware.TenantMiddleware(),
+	// 3. Business Scoped Routes (JWT + Tenant + CurrentBusiness)
+	businessScoped := protected.Group("",
 		middleware.CurrentBusinessMiddleware(),
+		middleware.SubscriptionMiddleware(db),
 	)
+
 	category.RegisterCategoryRoutes(businessScoped, db)
 	product.RegisterProductRoutes(businessScoped, db)
 	inventory.RegisterInventoryRoutes(businessScoped, db)
 	sale.RegisterSaleRoutes(businessScoped, db)
+	subscription.RegisterRoutes(businessScoped, db)
+	seed.RegisterRoutes(businessScoped, db)
+
+	// NEW: Shift and Table management
+	shift.RegisterShiftRoutes(businessScoped, db)
+	table.RegisterTableRoutes(businessScoped, db)
 
 	// === Start server ===
 	port := config.AppPort()

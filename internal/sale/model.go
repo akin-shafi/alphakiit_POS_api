@@ -19,26 +19,33 @@ const (
 )
 
 type Sale struct {
-	ID            uint           `gorm:"primaryKey" json:"id"`
-	BusinessID    uint           `gorm:"index" json:"business_id"`
-	TenantID      string         `gorm:"index;size:8" json:"tenant_id"`
-	CustomerName  string         `json:"customer_name,omitempty"`
-	CustomerPhone string         `json:"customer_phone,omitempty"`
-	Subtotal      float64        `gorm:"type:decimal(12,2)" json:"subtotal"`
-	Tax           float64        `gorm:"type:decimal(12,2)" json:"tax"`
-	Discount      float64        `gorm:"type:decimal(12,2)" json:"discount"`
-	Total         float64        `gorm:"type:decimal(12,2)" json:"total"`
-	PaymentMethod string         `json:"payment_method"` // CASH, CARD, TRANSFER, etc.
-	Status        SaleStatus     `gorm:"type:varchar(20);default:'DRAFT'" json:"status"`
-	TerminalID    uint           `json:"terminal_id"`
-	CashierID     uint           `json:"cashier_id"`
-	SaleDate      time.Time      `json:"sale_date"`
-	SyncedAt      *time.Time     `json:"synced_at,omitempty"` // for offline sync
-	CreatedAt     time.Time      `json:"created_at"`
-	UpdatedAt     time.Time      `json:"updated_at"`
-	DeletedAt     gorm.DeletedAt `gorm:"index" json:"-"`
+	ID            uint       `gorm:"primaryKey" json:"id"`
+	BusinessID    uint       `gorm:"index;index:idx_business_saledate" json:"business_id"`
+	TenantID      string     `gorm:"index;size:8" json:"tenant_id"`
+	CustomerName  string     `json:"customer_name,omitempty"`
+	CustomerPhone string     `json:"customer_phone,omitempty"`
+	Subtotal      float64    `gorm:"type:decimal(12,2)" json:"subtotal"`
+	Tax           float64    `gorm:"type:decimal(12,2)" json:"tax"`
+	Discount      float64    `gorm:"type:decimal(12,2)" json:"discount"`
+	Total         float64    `gorm:"type:decimal(12,2)" json:"total"`
+	PaymentMethod string     `json:"payment_method"` // CASH, CARD, TRANSFER, etc.
+	Status        SaleStatus `gorm:"type:varchar(20);default:'DRAFT'" json:"status"`
+	TerminalID    uint       `json:"terminal_id"`
+	CashierID     uint       `json:"cashier_id"`
+	DailySequence int        `gorm:"type:int;default:0" json:"daily_sequence"` // resets daily
+	SaleDate      time.Time  `gorm:"index:idx_business_saledate" json:"sale_date"`
+	SyncedAt      *time.Time `json:"synced_at,omitempty"` // for offline sync
+	// New fields for table management and shift tracking
+	TableID     *uint          `gorm:"index" json:"table_id,omitempty"`
+	TableNumber string         `json:"table_number,omitempty"`                               // Snapshot for history
+	OrderType   string         `gorm:"type:varchar(20);default:'dine-in'" json:"order_type"` // dine-in, takeaway, delivery
+	ShiftID     *uint          `gorm:"index" json:"shift_id,omitempty"`                      // Link to cashier's shift
+	CreatedAt   time.Time      `json:"created_at"`
+	UpdatedAt   time.Time      `json:"updated_at"`
+	DeletedAt   gorm.DeletedAt `gorm:"index" json:"-"`
 
-	SaleItems []SaleItem `gorm:"foreignKey:SaleID;constraint:OnDelete:CASCADE" json:"items"`
+	CashierName string     `gorm:"-" json:"cashier_name"` // Populated manually or via join
+	SaleItems   []SaleItem `gorm:"foreignKey:SaleID;constraint:OnDelete:CASCADE" json:"items"`
 }
 
 type SaleItem struct {
