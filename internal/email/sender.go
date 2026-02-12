@@ -76,12 +76,11 @@ func (s *Sender) SendCustomEmail(toEmail, subject, htmlBody string) error {
 
 func (s *Sender) SendEmailVerification(toEmail, name, verificationURL string) error {
 	data := EmailData{
-		AppName:      s.config.AppName,
-		AppURL:       s.config.AppURL,
-		SupportEmail: s.config.SupportEmail,
-		Subject:      "Verify Your Email Address",
-		Name:         name,
-		// Custom field for this template
+		AppName:         s.config.AppName,
+		AppURL:          s.config.AppURL,
+		SupportEmail:    s.config.SupportEmail,
+		Subject:         "Verify Your Email Address",
+		Name:            name,
 		VerificationURL: verificationURL,
 	}
 
@@ -94,6 +93,49 @@ func (s *Sender) SendEmailVerification(toEmail, name, verificationURL string) er
 	m.SetHeader("From", s.config.SMTPFrom)
 	m.SetHeader("To", toEmail)
 	m.SetHeader("Subject", subject)
+	m.SetBody("text/html", htmlBody)
+
+	return s.dialer.DialAndSend(m)
+}
+
+func (s *Sender) SendSecurityEmail(toEmail, name, subject, message string) error {
+	data := EmailData{
+		AppName:      s.config.AppName,
+		AppURL:       s.config.AppURL,
+		SupportEmail: s.config.SupportEmail,
+		Subject:      subject,
+		Name:         name,
+		Message:      message,
+	}
+
+	renderedSubject, htmlBody, err := RenderTemplate("security_alert.html", data)
+	if err != nil {
+		return err
+	}
+
+	m := mail.NewMessage()
+	m.SetHeader("From", s.config.SMTPFrom)
+	m.SetHeader("To", toEmail)
+	m.SetHeader("Subject", renderedSubject)
+	m.SetBody("text/html", htmlBody)
+
+	return s.dialer.DialAndSend(m)
+}
+func (s *Sender) SendDailyReport(toEmail string, data EmailData) error {
+	data.AppName = s.config.AppName
+	data.AppURL = s.config.AppURL
+	data.SupportEmail = s.config.SupportEmail
+	data.Subject = "Daily Business Report: " + data.BusinessName
+
+	renderedSubject, htmlBody, err := RenderTemplate("daily_report.html", data)
+	if err != nil {
+		return err
+	}
+
+	m := mail.NewMessage()
+	m.SetHeader("From", s.config.SMTPFrom)
+	m.SetHeader("To", toEmail)
+	m.SetHeader("Subject", renderedSubject)
 	m.SetBody("text/html", htmlBody)
 
 	return s.dialer.DialAndSend(m)

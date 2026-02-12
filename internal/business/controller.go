@@ -1,6 +1,8 @@
 package business
 
 import (
+	"fmt"
+	"os"
 	"pos-fiber-app/internal/types"
 
 	"github.com/gofiber/fiber/v2"
@@ -116,7 +118,7 @@ func UpdateHandler(db *gorm.DB) fiber.Handler {
 		}
 
 		// Basic validation
-		if req.Name == "" && req.Type == "" && req.Address == "" && req.City == "" {
+		if req.Name == "" && req.Type == "" && req.Address == "" && req.City == "" && req.DataRetentionMonths == nil && req.AutoArchiveEnabled == nil && req.ArchiveFrequency == "" && req.WhatsAppEnabled == nil && req.WhatsAppNumber == "" {
 			return fiber.NewError(fiber.StatusBadRequest, "at least one field must be provided for update")
 		}
 
@@ -140,6 +142,21 @@ func UpdateHandler(db *gorm.DB) fiber.Handler {
 
 		if req.Currency != nil {
 			updates["currency"] = *req.Currency
+		}
+		if req.DataRetentionMonths != nil {
+			updates["data_retention_months"] = *req.DataRetentionMonths
+		}
+		if req.AutoArchiveEnabled != nil {
+			updates["auto_archive_enabled"] = *req.AutoArchiveEnabled
+		}
+		if req.ArchiveFrequency != "" {
+			updates["archive_frequency"] = req.ArchiveFrequency
+		}
+		if req.WhatsAppEnabled != nil {
+			updates["whatsapp_enabled"] = *req.WhatsAppEnabled
+		}
+		if req.WhatsAppNumber != "" {
+			updates["whatsapp_number"] = req.WhatsAppNumber
 		}
 
 		// Perform update
@@ -188,3 +205,45 @@ func DeleteHandler(db *gorm.DB) fiber.Handler {
 		return c.SendStatus(fiber.StatusNoContent)
 	}
 }
+
+// ConnectGoogleDriveHandler redirects user to Google for OAuth
+func ConnectGoogleDriveHandler(db *gorm.DB) fiber.Handler {
+	return func(c *fiber.Ctx) error {
+		bizID := c.Locals("current_business_id").(uint)
+		loginURL := GetGoogleLoginURL(bizID)
+		return c.Redirect(loginURL)
+	}
+}
+
+// GoogleCallbackHandler receives the auth code from Google
+func GoogleCallbackHandler(db *gorm.DB) fiber.Handler {
+	return func(c *fiber.Ctx) error {
+		code := c.Query("code")
+		state := c.Query("state") // This is our businessID
+		if code == "" || state == "" {
+			return fiber.NewError(fiber.StatusBadRequest, "invalid callback parameters")
+		}
+
+		var bizID uint
+		fmt.Sscanf(state, "%d", &bizID)
+
+		if err := HandleGoogleCallback(db, bizID, code); err != nil {
+			return fiber.NewError(fiber.StatusInternalServerError, "failed to link Google Drive: "+err.Error())
+		}
+
+		// Redirect back to the frontend settings page
+		frontendURL := os.Getenv("FRONTEND_URL")
+		if frontendURL == "" {
+			frontendURL = "http://localhost:3000"
+		}
+		return c.Redirect(frontendURL + "/dashboard/settings/data?status=google_connected")
+	}
+}
+
+// PurgeHandler godoc
+// @Summary Manually trigger data cleanup/purge
+// @Tags Business
+// @Security BearerAuth
+// @Param id path uint true "Business ID"
+// @Success 200 {object} map[string]string
+// @Router /businesses/{id}/purge [post]

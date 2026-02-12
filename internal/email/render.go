@@ -21,8 +21,25 @@ type EmailData struct {
 	Subject         string
 	OTP             string // for password reset
 	Name            string // for welcome, etc.
-	VerificationURL string // <-- add this
-	// Add more as needed
+	VerificationURL string
+	Message         string // for security alerts, etc.
+
+	// Daily Report Data
+	BusinessName     string
+	Currency         string
+	TotalSales       string
+	TransactionCount int
+	CashSales        string
+	CardSales        string
+	TransferSales    string
+	Date             string
+	LowStockItems    []EmailInventoryItem
+	SecurityAlerts   []string
+}
+
+type EmailInventoryItem struct {
+	Name  string
+	Stock int
 }
 
 var baseTemplates = []string{"templates/header.html", "templates/footer.html"}
@@ -41,7 +58,7 @@ func RenderTemplate(templateName string, data EmailData) (subject string, htmlBo
 	contentPath := "templates/" + templateName
 
 	// Parse all templates: header, footer, and the specific content
-	tmpl, err := template.New(templateName).ParseFS(templateFS,
+	tmpl, err := template.ParseFS(templateFS,
 		append(baseTemplates, contentPath)...,
 	)
 	if err != nil {
@@ -49,7 +66,8 @@ func RenderTemplate(templateName string, data EmailData) (subject string, htmlBo
 	}
 
 	var buf bytes.Buffer
-	if err := tmpl.ExecuteTemplate(&buf, templateName, data); err != nil {
+	// Execute the specific content template using its full path
+	if err := tmpl.ExecuteTemplate(&buf, contentPath, data); err != nil {
 		return "", "", err
 	}
 

@@ -6,27 +6,24 @@ import (
 )
 
 // RegisterUserRoutes registers all user-related routes
-func RegisterUserRoutes(router fiber.Router, db *gorm.DB) {
+func RegisterUserRoutes(public fiber.Router, protected fiber.Router, db *gorm.DB) {
 	service := NewUserService(db)
 
-	// Create user
-	router.Post("/users", CreateUserHandler(service))
+	// Public: password reset (some parts might be public)
+	// Actually most user management should be protected except maybe self-registration if allowed
 
-	// List users for tenant
-	router.Get("/users", ListUsersHandler(service))
+	// Create user (Public/Internal depending on flow, but let's keep it in public for now if onboarding uses it)
+	public.Post("/users", CreateUserHandler(service))
 
-	// Get single user
-	router.Get("/users/:id", GetUserHandler(service))
+	// Protected user routes
+	userGroup := protected.Group("/users")
+	userGroup.Get("/", ListUsersHandler(service))
+	userGroup.Get("/:id", GetUserHandler(service))
+	userGroup.Put("/:id", UpdateUserHandler(service))
+	userGroup.Delete("/:id", DeleteUserHandler(service))
+	userGroup.Post("/:id/reset-password", ResetPasswordHandler(service))
 
-	// Update user
-	router.Put("/users/:id", UpdateUserHandler(service))
-
-	// Delete user
-	router.Delete("/users/:id", DeleteUserHandler(service))
-
-	// Reset user password
-	router.Post("/users/:id/reset-password", ResetPasswordHandler(service))
-
-	// Get logged-in user profile
-	router.Get("/profile", ProfileHandler(service))
+	// Logged-in user profile
+	protected.Get("/profile", ProfileHandler(service))
+	protected.Put("/profile", UpdateProfileHandler(service))
 }

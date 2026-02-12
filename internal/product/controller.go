@@ -2,6 +2,9 @@
 package product
 
 import (
+	"fmt"
+	"pos-fiber-app/internal/common"
+
 	"github.com/gofiber/fiber/v2"
 	"gorm.io/gorm"
 )
@@ -21,28 +24,25 @@ func ListHandler(db *gorm.DB) fiber.Handler {
 	return func(c *fiber.Ctx) error {
 		bizID := c.Locals("current_business_id").(uint)
 
-		// Optional filters
-		query := db.Where("business_id = ?", bizID)
+		var filters []func(*gorm.DB) *gorm.DB
 
 		if categoryIDStr := c.Query("category_id"); categoryIDStr != "" {
-			categoryID, err := c.ParamsInt("category_id")
-			if err == nil {
-				query = query.Where("category_id = ?", uint(categoryID))
+			var categoryID uint
+			fmt.Sscanf(categoryIDStr, "%d", &categoryID)
+			if categoryID > 0 {
+				filters = append(filters, WithCategory(categoryID))
 			}
 		}
 
 		if activeStr := c.Query("active"); activeStr != "" {
-			if activeStr == "false" {
-				query = query.Where("active = ?", false)
-			} else {
-				query = query.Where("active = ?", true)
-			}
-		} else {
-			query = query.Where("active = ?", true) // default: only active
+			active := activeStr != "false"
+			filters = append(filters, func(q *gorm.DB) *gorm.DB {
+				return q.Where("products.active = ?", active)
+			})
 		}
 
-		var products []Product
-		if err := query.Find(&products).Error; err != nil {
+		products, err := ListByBusiness(db, bizID, filters...)
+		if err != nil {
 			return fiber.ErrInternalServerError
 		}
 
@@ -70,6 +70,40 @@ func CreateHandler(db *gorm.DB) fiber.Handler {
 		}
 
 		bizID := c.Locals("current_business_id").(uint)
+
+		// --- Check Subscription Product Limit ---
+		var sub struct {
+			PlanType common.PlanType `gorm:"column:plan_type"`
+		}
+		err := db.Table("subscriptions").
+			Where("business_id = ? AND status IN ?", bizID, []common.SubscriptionStatus{common.StatusActive, common.StatusGracePeriod, common.StatusPendingPayment}).
+			Order("end_date DESC").
+			First(&sub).Error
+
+		// Default limit (Trial: 50)
+		limit := 50
+
+		if err == nil {
+			// Find Plan
+			for _, p := range common.AvailablePlans {
+				if p.Type == sub.PlanType {
+					limit = p.ProductLimit
+					break
+				}
+			}
+		}
+
+		// Count current active products for this business
+		var currentCount int64
+		db.Table("products").Where("business_id = ? AND active = ?", bizID, true).Count(&currentCount)
+
+		if int(currentCount) >= limit {
+			return c.Status(403).JSON(fiber.Map{
+				"error":   "Product Limit Reached",
+				"message": fmt.Sprintf("Your current plan allows max %d products. Please upgrade to add more items.", limit),
+			})
+		}
+		// -------------------------------------
 
 		product, err := Create(db, bizID, req)
 		if err != nil {

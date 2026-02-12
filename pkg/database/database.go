@@ -12,9 +12,14 @@ import (
 	"pos-fiber-app/internal/category"
 	"pos-fiber-app/internal/config"
 	"pos-fiber-app/internal/inventory"
+	"pos-fiber-app/internal/otp"
 	"pos-fiber-app/internal/outlet"
 	"pos-fiber-app/internal/product"
+	"pos-fiber-app/internal/recipe"
 	"pos-fiber-app/internal/sale"
+	"pos-fiber-app/internal/shift"
+	"pos-fiber-app/internal/subscription"
+	"pos-fiber-app/internal/table"
 	"pos-fiber-app/internal/terminal"
 	"pos-fiber-app/internal/user"
 )
@@ -27,24 +32,56 @@ func ConnectDB() *gorm.DB {
 	return db
 }
 
-func RunMigrations(db *gorm.DB) {
+func RunMigrations(db *gorm.DB) error {
+	// Order is important: migrate parent tables first
 	err := db.AutoMigrate(
+		&otp.OTP{},
 		&auth.RefreshToken{}, // if you have password_reset_otp table
 		&user.User{},
 		&business.Business{},
 		&business.Tenant{}, // if you're still using the Tenant table
 		&outlet.Outlet{},
 		&terminal.Terminal{},
+		&terminal.Printer{},
 		&category.Category{},
 		&product.Product{},
 		&inventory.Inventory{},
+		&inventory.StockReservation{}, // NEW: Stock reservations
 		&sale.Sale{},
-        &sale.SaleItem{},
+		&sale.SaleItem{},
+		&sale.SaleSummary{},        // NEW: Sale summaries for archiving
+		&sale.SaleActivityLog{},    // NEW: Sale activity logs
+		&shift.Shift{},             // NEW: Shift management
+		&table.Table{},             // NEW: Table management
+		&recipe.RecipeIngredient{}, // NEW: Recipe management (BOM)
+		&subscription.Subscription{},
+		&subscription.PromoCode{},
+		&subscription.BusinessModule{},
+		&subscription.ReferralCode{},
+		&subscription.CommissionRecord{},
+		&subscription.CommissionSetting{},
+		&subscription.TrainingResource{},
+		&subscription.PayoutRequest{},
 
-        
-		// Add any other models here (e.g. password reset OTP if separate)
+		// add all other models here...
+		// &models.Transaction{},
+		// &models.Payment{},
+		// &models.Customer{},
+		// etc.
 	)
+
 	if err != nil {
-		log.Fatal("Failed to run migrations:", err)
+		return err
 	}
+
+	// Fallsafe: Manually ensure outlet_id exists in sales table if AutoMigrate skipped it
+	if !db.Migrator().HasColumn(&sale.Sale{}, "OutletID") {
+		log.Println("Migrator: adding missing outlet_id column to sales table")
+		if err := db.Migrator().AddColumn(&sale.Sale{}, "OutletID"); err != nil {
+			log.Printf("Warning: Failed to add outlet_id column: %v", err)
+		}
+	}
+
+	log.Println("Database migrations completed successfully")
+	return nil
 }

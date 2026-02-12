@@ -4,7 +4,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/golang-jwt/jwt/v5"
+	"github.com/golang-jwt/jwt/v4"
 )
 
 // type Role string
@@ -15,6 +15,7 @@ func generateToken(secret string, base Claims, ttl time.Duration) (string, error
 
 	claims := Claims{
 		UserID:   base.UserID,
+		UserName: base.UserName,
 		TenantID: base.TenantID,
 		Role:     base.Role,
 		OutletID: base.OutletID,
@@ -31,7 +32,11 @@ func generateToken(secret string, base Claims, ttl time.Duration) (string, error
 }
 
 func GenerateAccessToken(claims Claims) (string, error) {
-	return generateToken(os.Getenv("JWT_SECRET"), claims, 15*time.Minute)
+	ttl := 15 * time.Minute
+	if claims.Role == "KITCHEN" || claims.Role == "CHEF" || claims.Role == "BARTENDER" {
+		ttl = 24 * time.Hour // Long session for kitchen displays
+	}
+	return generateToken(os.Getenv("JWT_SECRET"), claims, ttl)
 }
 
 func GenerateRefreshToken(claims Claims) (string, error) {

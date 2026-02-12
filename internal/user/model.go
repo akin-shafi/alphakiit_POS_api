@@ -9,19 +9,23 @@ import (
 
 // User represents a POS system user
 type User struct {
-	ID        uint `gorm:"primaryKey"`
-	FirstName string
-	LastName  string
-	phone     string
-	// Email     string `gorm:"uniqueIndex"`
-	Email     string `gorm:"uniqueIndex" json:"email"`
-	Password  string
-	Active    bool
-	TenantID  string
-	OutletID  *uint
-	Role      string // OWNER / MANAGER / CASHIER
-	CreatedAt time.Time
-	UpdatedAt time.Time
+	ID                uint      `gorm:"primaryKey" json:"id"`
+	FirstName         string    `json:"first_name"`
+	LastName          string    `json:"last_name"`
+	Phone             string    `json:"phone"`
+	Email             string    `gorm:"uniqueIndex" json:"email"`
+	Password          string    `json:"-"`
+	Active            bool      `json:"active"`
+	TenantID          string    `json:"tenant_id"`
+	OutletID          *uint     `json:"outlet_id"`
+	Role              string    `json:"role"` // OWNER / MANAGER / CASHIER / INSTALLER
+	IsVerified        bool      `gorm:"default:false" json:"is_verified"`
+	BankName          string    `json:"bank_name"`
+	AccountNumber     string    `json:"account_number"`
+	AccountName       string    `json:"account_name"`
+	VerificationToken string    `json:"-"` // Temporary token if needed, or just rely on OTP table
+	CreatedAt         time.Time `json:"-"`
+	UpdatedAt         time.Time `json:"-"`
 }
 
 // HashPassword hashes a plain password

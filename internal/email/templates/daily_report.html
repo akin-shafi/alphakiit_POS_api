@@ -1,0 +1,71 @@
+{{template "header" .}}
+<div style="padding: 30px; background-color: white;">
+    <p style="font-size: 16px; color: #374151;">Hello <strong>{{.Name}}</strong>,</p>
+    <p style="font-size: 16px; color: #374151; line-height: 1.6;">
+        Here is the daily business summary for <strong>{{.BusinessName}}</strong> on {{.Date}}.
+    </p>
+
+    <!-- Sales Summary -->
+    <div
+        style="margin: 25px 0; padding: 20px; background-color: #f8fafc; border-radius: 12px; border: 1px solid #e2e8f0;">
+        <h3
+            style="margin: 0 0 15px 0; color: #1e293b; font-size: 18px; border-bottom: 2px solid #3b82f6; display: inline-block; padding-bottom: 4px;">
+            Revenue Overview</h3>
+        <table style="width: 100%; border-collapse: collapse;">
+            <tr>
+                <td style="padding: 8px 0; color: #64748b;">Total Sales</td>
+                <td style="padding: 8px 0; text-align: right; font-weight: bold; color: #0f172a;">{{.Currency}}
+                    {{.TotalSales}}</td>
+            </tr>
+            <tr>
+                <td style="padding: 8px 0; color: #64748b;">Transactions</td>
+                <td style="padding: 8px 0; text-align: right; font-weight: bold; color: #0f172a;">{{.TransactionCount}}
+                </td>
+            </tr>
+            <tr style="border-top: 1px solid #e2e8f0;">
+                <td style="padding: 8px 0; color: #64748b;">Cash</td>
+                <td style="padding: 8px 0; text-align: right; color: #334155;">{{.Currency}} {{.CashSales}}</td>
+            </tr>
+            <tr>
+                <td style="padding: 8px 0; color: #64748b;">Card</td>
+                <td style="padding: 8px 0; text-align: right; color: #334155;">{{.Currency}} {{.CardSales}}</td>
+            </tr>
+            <tr>
+                <td style="padding: 8px 0; color: #64748b;">Transfer</td>
+                <td style="padding: 8px 0; text-align: right; color: #334155;">{{.Currency}} {{.TransferSales}}</td>
+            </tr>
+        </table>
+    </div>
+
+    {{if .LowStockItems}}
+    <!-- Inventory Section -->
+    <div
+        style="margin: 25px 0; padding: 20px; background-color: #fffbeb; border-radius: 12px; border: 1px solid #fde68a;">
+        <h3 style="margin: 0 0 15px 0; color: #92400e; font-size: 18px;">⚠️ Low Stock Alerts</h3>
+        <ul style="margin: 0; padding-left: 20px; color: #b45309;">
+            {{range .LowStockItems}}
+            <li style="margin-bottom: 5px;"><strong>{{.Name}}</strong>: Only {{.Stock}} left</li>
+            {{end}}
+        </ul>
+    </div>
+    {{end}}
+
+    {{if .SecurityAlerts}}
+    <!-- Security Section -->
+    <div
+        style="margin: 25px 0; padding: 20px; background-color: #fef2f2; border-radius: 12px; border: 1px solid #fecaca;">
+        <h3 style="margin: 0 0 15px 0; color: #991b1b; font-size: 18px;">🔒 Security Activity</h3>
+        <ul style="margin: 0; padding-left: 20px; color: #b91c1c;">
+            {{range .SecurityAlerts}}
+            <li style="margin-bottom: 5px;">{{.}}</li>
+            {{end}}
+        </ul>
+    </div>
+    {{end}}
+
+    <p style="font-size: 14px; color: #6b7280; margin-top: 30px; border-top: 1px solid #f3f4f6; padding-top: 20px;">
+        This is an automated report sent based on your scheduled preferences. You can adjust your reporting settings on
+        the Web Dashboard.
+    </p>
+</div>
+{{template "footer" .}}

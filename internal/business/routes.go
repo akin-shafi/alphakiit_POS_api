@@ -13,4 +13,10 @@ func RegisterBusinessRoutes(r fiber.Router, db *gorm.DB) {
 	r.Put("/businesses/:id", UpdateHandler(db))
 	r.Delete("/businesses/:id", DeleteHandler(db))
 
+	// Google Drive Connect
+	r.Get("/google/connect", ConnectGoogleDriveHandler(db))
+}
+
+func RegisterPublicBusinessRoutes(r fiber.Router, db *gorm.DB) {
+	r.Get("/google/callback", GoogleCallbackHandler(db))
 }

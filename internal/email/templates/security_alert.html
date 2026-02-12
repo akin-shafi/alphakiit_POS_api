@@ -1,0 +1,23 @@
+{{template "header" .}}
+<div style="padding: 30px; background-color: white;">
+    <p style="font-size: 16px; color: #374151;">Hello <strong>{{.Name}}</strong>,</p>
+    <p style="font-size: 16px; color: #374151; line-height: 1.6;">
+        A sensitive action has been performed in your POS system that requires your attention:
+    </p>
+    <div style="background-color: #f9fafb; border-left: 4px solid #ef4444; padding: 15px; margin: 20px 0;">
+        <p style="margin: 0; font-weight: bold; color: #111827;">{{.Subject}}</p>
+        <p style="margin: 5px 0 0 0; color: #4b5563; white-space: pre-wrap;">{{.Message}}</p>
+    </div>
+    <div
+        style="margin-top: 30px; padding: 15px; background-color: #eff6ff; border-radius: 8px; border: 1px solid #dbeafe;">
+        <p style="margin: 0; font-size: 14px; color: #1e40af;">
+            <strong>Pro Tip:</strong> You can view the full details of this activity in your Audit Log on the Web
+            Dashboard.
+        </p>
+    </div>
+    <p style="font-size: 14px; color: #6b7280; margin-top: 30px; border-top: 1px solid #f3f4f6; padding-top: 20px;">
+        If this was not authorized by you or you have concerns, please investigate your system activity logs immediately
+        or contact our support team.
+    </p>
+</div>
+{{template "footer" .}}

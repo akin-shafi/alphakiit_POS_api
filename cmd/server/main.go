@@ -14,16 +14,25 @@ import (
 	// NEW: Modern Swaggo for Fiber v2/v3 + OpenAPI 3
 
 	"pos-fiber-app/docs" // Keep this for swag init to generate docs
+	"pos-fiber-app/internal/archiver"
 	"pos-fiber-app/internal/auth"
 	"pos-fiber-app/internal/business"
 	"pos-fiber-app/internal/category"
 	"pos-fiber-app/internal/config"
 	"pos-fiber-app/internal/inventory"
 	"pos-fiber-app/internal/middleware"
+	"pos-fiber-app/internal/notification"
 	"pos-fiber-app/internal/onboarding"
 	"pos-fiber-app/internal/outlet"
+	"pos-fiber-app/internal/printing"
 	"pos-fiber-app/internal/product"
+	"pos-fiber-app/internal/recipe"
+	"pos-fiber-app/internal/report"
 	"pos-fiber-app/internal/sale"
+	"pos-fiber-app/internal/seed"
+	"pos-fiber-app/internal/shift" // NEW: Shift management
+	"pos-fiber-app/internal/subscription"
+	"pos-fiber-app/internal/table" // NEW: Table management
 	"pos-fiber-app/internal/terminal"
 	"pos-fiber-app/internal/user"
 	"pos-fiber-app/pkg/database"
@@ -53,12 +62,24 @@ import (
 // @securityDefinitions.bearer  BearerAuth
 // @in                          header
 // @name                        Authorization
+
+// @securityDefinitions.apiKey BusinessID
+// @in                          header
+// @name                        X-Current-Business-ID
 // @description                 JWT Authorization header using the Bearer scheme. Enter your token only (without "Bearer " prefix).
 
 func main() {
 	config.LoadEnv()
 
 	db := database.ConnectDB()
+
+	// if err := database.RunMigrations(db); err != nil {
+	// 	log.Fatalf("Failed to run migrations: %v", err)
+	// }
+
+	// === Start Background Tasks ===
+	archiver.StartDataLifecycleManager(db)
+	report.StartReportScheduler(db)
 
 	app := fiber.New()
 
@@ -74,10 +95,13 @@ func main() {
 	}))
 
 	// === CORS ===
+
 	app.Use(cors.New(cors.Config{
-		AllowOrigins: getAllowedOrigins(),
-		AllowMethods: "GET,POST,PUT,DELETE,OPTIONS",
-		AllowHeaders: "Origin, Content-Type, Accept, Authorization",
+		AllowOrigins:     getAllowedOrigins(),
+		AllowMethods:     "GET,POST,PUT,DELETE,PATCH,OPTIONS",
+		AllowHeaders:     "Origin, Content-Type, Accept, Authorization, X-Current-Business-ID, X-Current-Business-Id, X-Business-ID, X-Business-Id, X-Tenant-ID, X-Tenant-Id",
+		AllowCredentials: true,
+		ExposeHeaders:    "Content-Length, X-Current-Business-ID, X-Current-Business-Id, X-Business-ID, X-Business-Id, X-Tenant-ID, X-Tenant-Id",
 	}))
 
 	// === NEW: Modern Swagger UI with OpenAPI 3 support ===
@@ -95,30 +119,57 @@ func main() {
 	setDynamicSwaggerConfig()
 
 	// === Routes ===
-	public := app.Group("/api/v1")
-	user.RegisterUserRoutes(public, db)
-	onboarding.RegisterRoutes(public, db)
+	apiV1 := app.Group("/api/v1")
 
-	// Login-specific limiter for auth routes
-	auth.RegisterAuthRoutes(public.Group("/auth", config.LoginLimiter()), public.Group("/auth"), db)
+	// 1. PUBLIC ROUTES (No Auth Required)
+	// --------------------------------------------------
+	business.RegisterPublicBusinessRoutes(apiV1, db)
+	onboarding.RegisterRoutes(apiV1, db)
+	subscription.RegisterPublicRoutes(apiV1, db)
+	seed.RegisterPublicRoutes(apiV1, db)
 
-	protected := app.Group("/api/v1",
+	// Auth (Public part: login, verify-otp, password-reset)
+	auth.RegisterAuthRoutes(apiV1.Group("/auth"), db)
+
+	// 2. PROTECTED ROUTES (JWT + Tenant)
+	// --------------------------------------------------
+	protected := apiV1.Group("",
 		middleware.JWTProtected(),
 		middleware.TenantMiddleware(),
 	)
+
+	// User (Internal: Profile and Staff management)
+	user.RegisterUserRoutes(apiV1, protected, db)
+
 	business.RegisterBusinessRoutes(protected, db)
+	business.RegisterAdminRoutes(protected, db)
+	sale.RegisterManagementRoutes(protected, db)
 	outlet.RegisterRoutes(protected, db)
 	terminal.RegisterRoutes(protected, db)
 
-	businessScoped := app.Group("/api/v1",
-		middleware.JWTProtected(),
-		middleware.TenantMiddleware(),
+	// 3. BUSINESS SCOPED ROUTES (JWT + Tenant + CurrentBusiness)
+	// --------------------------------------------------
+	businessScoped := protected.Group("",
 		middleware.CurrentBusinessMiddleware(),
+		middleware.SubscriptionMiddleware(db),
 	)
+
 	category.RegisterCategoryRoutes(businessScoped, db)
 	product.RegisterProductRoutes(businessScoped, db)
 	inventory.RegisterInventoryRoutes(businessScoped, db)
 	sale.RegisterSaleRoutes(businessScoped, db)
+	seed.RegisterRoutes(businessScoped, db)
+
+	// Subscriptions & Shift/Table
+	subscription.RegisterRoutes(protected.Group("/subscription", middleware.CurrentBusinessMiddleware()), db)
+	subscription.RegisterReferralRoutes(protected.Group("/referrals"), db)
+	subscription.RegisterAdminRoutes(protected, db)
+
+	shift.RegisterShiftRoutes(businessScoped, db)
+	table.RegisterTableRoutes(businessScoped, db)
+	printing.RegisterRoutes(businessScoped, db)
+	recipe.RegisterRecipeRoutes(businessScoped, db)
+	notification.RegisterNotificationRoutes(protected, db)
 
 	// === Start server ===
 	port := config.AppPort()
@@ -192,6 +243,7 @@ func getAllowedOrigins() string {
 	base := getBaseURL()
 	defaults := []string{
 		"http://localhost:3000",
+		"http://localhost:3001",
 		"http://localhost:5173",
 		"http://localhost:5050",
 		base,
@@ -202,14 +254,21 @@ func getAllowedOrigins() string {
 		defaults = append(defaults, httpsVersion)
 	}
 
+	// Merge environment origins if they exist
 	if env := os.Getenv("ALLOWED_ORIGINS"); env != "" {
-		return env
+		envOrigins := strings.Split(env, ",")
+		for _, o := range envOrigins {
+			trimmed := strings.TrimSpace(o)
+			if trimmed != "" {
+				defaults = append(defaults, trimmed)
+			}
+		}
 	}
 
 	seen := make(map[string]bool)
 	var result []string
 	for _, origin := range defaults {
-		if !seen[origin] {
+		if origin != "" && !seen[origin] {
 			seen[origin] = true
 			result = append(result, origin)
 		}

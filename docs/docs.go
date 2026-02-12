@@ -9,15 +9,345 @@ const docTemplate = `{
     "info": {
         "description": "{{escape .Description}}",
         "title": "{{.Title}}",
-        "contact": {},
+        "termsOfService": "http://swagger.io/terms/",
+        "contact": {
+            "name": "API Support",
+            "url": "http://www.swagger.io/support",
+            "email": "support@swagger.io"
+        },
+        "license": {
+            "name": "MIT",
+            "url": "https://opensource.org/licenses/MIT"
+        },
         "version": "{{.Version}}"
     },
     "host": "{{.Host}}",
     "basePath": "{{.BasePath}}",
     "paths": {
+        "/admin/businesses": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Retrieve all businesses",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Admin"
+                ],
+                "summary": "Get all businesses (Admin)",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/business.Business"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/admin/modules": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Retrieve all module subscriptions across all businesses",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Admin"
+                ],
+                "summary": "Get all business modules (Admin)",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/subscription.BusinessModule"
+                            }
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Assign a module to a business",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Admin"
+                ],
+                "summary": "Create business module (Admin)",
+                "parameters": [
+                    {
+                        "description": "Module details",
+                        "name": "payload",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "type": "object"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/subscription.BusinessModule"
+                        }
+                    }
+                }
+            }
+        },
+        "/admin/modules/{id}": {
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Update module status or expiry",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Admin"
+                ],
+                "summary": "Update business module (Admin)",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Module ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Update details",
+                        "name": "payload",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "type": "object"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/subscription.BusinessModule"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Remove a module from a business",
+                "tags": [
+                    "Admin"
+                ],
+                "summary": "Delete business module (Admin)",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Module ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                }
+            }
+        },
+        "/admin/promo-codes": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Retrieve all promo codes",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Admin"
+                ],
+                "summary": "Get all promo codes (Admin)",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/subscription.PromoCode"
+                            }
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Create a new promotional code",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Admin"
+                ],
+                "summary": "Create promo code (Admin)",
+                "parameters": [
+                    {
+                        "description": "Promo code details",
+                        "name": "payload",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "type": "object"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/subscription.PromoCode"
+                        }
+                    }
+                }
+            }
+        },
+        "/admin/promo-codes/{id}": {
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Update promo code details",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Admin"
+                ],
+                "summary": "Update promo code (Admin)",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Promo Code ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Update details",
+                        "name": "payload",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "type": "object"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/subscription.PromoCode"
+                        }
+                    }
+                }
+            }
+        },
+        "/admin/subscriptions": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Retrieve all subscriptions across all businesses",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Admin"
+                ],
+                "summary": "Get all subscriptions (Admin)",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "type": "object",
+                                "additionalProperties": true
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/admin/subscriptions/renew": {
+            "post": {
+                "description": "Create or extend a subscription for a business",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Admin"
+                ],
+                "summary": "Manual Subscription Renewal (Admin)",
+                "responses": {}
+            }
+        },
         "/auth/forgot-password": {
             "post": {
-                "description": "Send a 6-digit OTP to the user's email for password reset",
+                "description": "Generates a password reset OTP and sends it to the user's email",
                 "consumes": [
                     "application/json"
                 ],
@@ -27,10 +357,10 @@ const docTemplate = `{
                 "tags": [
                     "Auth"
                 ],
-                "summary": "Request password reset OTP",
+                "summary": "Request Password Reset",
                 "parameters": [
                     {
-                        "description": "Email address",
+                        "description": "Email payload",
                         "name": "body",
                         "in": "body",
                         "required": true,
@@ -46,7 +376,7 @@ const docTemplate = `{
                 ],
                 "responses": {
                     "200": {
-                        "description": "message: OTP sent",
+                        "description": "OK",
                         "schema": {
                             "type": "object",
                             "additionalProperties": {
@@ -62,22 +392,13 @@ const docTemplate = `{
                                 "type": "string"
                             }
                         }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
                     }
                 }
             }
         },
         "/auth/login": {
             "post": {
-                "description": "Authenticate a user and return access + refresh tokens",
+                "description": "Authenticate user and return tokens",
                 "consumes": [
                     "application/json"
                 ],
@@ -87,10 +408,10 @@ const docTemplate = `{
                 "tags": [
                     "Auth"
                 ],
-                "summary": "Login",
+                "summary": "User Login",
                 "parameters": [
                     {
-                        "description": "Login payload",
+                        "description": "Login credentials",
                         "name": "body",
                         "in": "body",
                         "required": true,
@@ -104,9 +425,7 @@ const docTemplate = `{
                         "description": "OK",
                         "schema": {
                             "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
+                            "additionalProperties": true
                         }
                     },
                     "400": {
@@ -117,28 +436,6 @@ const docTemplate = `{
                                 "type": "string"
                             }
                         }
-                    }
-                }
-            }
-        },
-        "/auth/logout": {
-            "post": {
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "description": "Delete refresh token and logout user",
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Auth"
-                ],
-                "summary": "Logout",
-                "responses": {
-                    "204": {
-                        "description": "No Content"
                     },
                     "401": {
                         "description": "Unauthorized",
@@ -152,9 +449,9 @@ const docTemplate = `{
                 }
             }
         },
-        "/auth/refresh": {
+        "/auth/resend-otp": {
             "post": {
-                "description": "Validate refresh token and issue new access token",
+                "description": "Generates a new OTP and sends it to the user's email",
                 "consumes": [
                     "application/json"
                 ],
@@ -164,17 +461,80 @@ const docTemplate = `{
                 "tags": [
                     "Auth"
                 ],
-                "summary": "Refresh Access Token",
+                "summary": "Resend Verification OTP",
                 "parameters": [
                     {
-                        "description": "Refresh token payload",
+                        "description": "Email payload",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/auth.ResendOTPRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/auth/reset-password": {
+            "post": {
+                "description": "Resets the user's password using a valid OTP",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Auth"
+                ],
+                "summary": "Reset Password",
+                "parameters": [
+                    {
+                        "description": "Reset payload",
                         "name": "body",
                         "in": "body",
                         "required": true,
                         "schema": {
                             "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
+                            "properties": {
+                                "email": {
+                                    "type": "string"
+                                },
+                                "new_password": {
+                                    "type": "string"
+                                },
+                                "otp": {
+                                    "type": "string"
+                                }
                             }
                         }
                     }
@@ -197,13 +557,22 @@ const docTemplate = `{
                                 "type": "string"
                             }
                         }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
                     }
                 }
             }
         },
-        "/auth/verify-otp": {
+        "/auth/verify-email": {
             "post": {
-                "description": "Verify the OTP sent to the user's email",
+                "description": "Verifies the OTP and activates the user account",
                 "consumes": [
                     "application/json"
                 ],
@@ -213,10 +582,63 @@ const docTemplate = `{
                 "tags": [
                     "Auth"
                 ],
-                "summary": "Verify OTP",
+                "summary": "Verify Email OTP",
                 "parameters": [
                     {
-                        "description": "Email and OTP",
+                        "description": "Verification payload",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/auth.VerifyEmailRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/auth/verify-reset-otp": {
+            "post": {
+                "description": "Checks if the password reset OTP is valid",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Auth"
+                ],
+                "summary": "Verify Reset OTP",
+                "parameters": [
+                    {
+                        "description": "Verification payload",
                         "name": "body",
                         "in": "body",
                         "required": true,
@@ -235,7 +657,7 @@ const docTemplate = `{
                 ],
                 "responses": {
                     "200": {
-                        "description": "message: OTP verified",
+                        "description": "OK",
                         "schema": {
                             "type": "object",
                             "additionalProperties": {
@@ -244,7 +666,7 @@ const docTemplate = `{
                         }
                     },
                     "400": {
-                        "description": "error: Invalid or expired OTP",
+                        "description": "Bad Request",
                         "schema": {
                             "type": "object",
                             "additionalProperties": {
@@ -745,9 +1167,7 @@ const docTemplate = `{
                         "description": "Business onboarded successfully",
                         "schema": {
                             "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
+                            "additionalProperties": true
                         }
                     },
                     "400": {
@@ -1203,7 +1623,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/user.User"
+                            "$ref": "#/definitions/pos-fiber-app_internal_user.User"
                         }
                     }
                 }
@@ -1238,6 +1658,12 @@ const docTemplate = `{
                         "description": "To date (YYYY-MM-DD)",
                         "name": "to",
                         "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter by payment method (CASH, CARD, TRANSFER, etc)",
+                        "name": "payment_method",
+                        "in": "query"
                     }
                 ],
                 "responses": {
@@ -1247,6 +1673,61 @@ const docTemplate = `{
                             "type": "array",
                             "items": {
                                 "$ref": "#/definitions/sale.Sale"
+                            }
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Atomic creation of sale header, items, and inventory deduction",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Sales"
+                ],
+                "summary": "Create and complete a sale in one shot",
+                "parameters": [
+                    {
+                        "description": "Sale details including items and payment",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/sale.CreateSaleRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/sale.SaleReceipt"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Insufficient stock or payment",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
                             }
                         }
                     }
@@ -1731,6 +2212,548 @@ const docTemplate = `{
                 }
             }
         },
+        "/seed": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Seeds sample products and categories based on business type",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Seed"
+                ],
+                "summary": "Seed business data",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Current Business ID",
+                        "name": "X-Current-Business-ID",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Business Type (RETAIL, RESTAURANT, etc.)",
+                        "name": "business_type",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/seed/installers": {
+            "post": {
+                "description": "Seeds global commission settings, training resources, and mock installer commissions",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Seed"
+                ],
+                "summary": "Seed installer data",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Current Business ID (Optional for this endpoint)",
+                        "name": "X-Current-Business-ID",
+                        "in": "header"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/shifts/{id}/summary": {
+            "get": {
+                "description": "Get detailed summary of a shift including sales and cash reconciliation",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "shifts"
+                ],
+                "summary": "Get shift summary",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Shift ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/fiber.Map"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/fiber.Map"
+                        }
+                    }
+                }
+            }
+        },
+        "/subscription/plans": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Retrieve a list of all plans excluding the hidden trial plan",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Subscription"
+                ],
+                "summary": "Get available subscription plans",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/subscription.SubscriptionPlan"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/subscription/promo/validate": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Check if a promo code is active, not expired, and has usage remaining",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Subscription"
+                ],
+                "summary": "Validate promo code",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Promo code to validate",
+                        "name": "code",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/subscription/status": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Get the current subscription details for the authorized business",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Subscription"
+                ],
+                "summary": "Get business subscription status",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/subscription.Subscription"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/subscription/subscribe": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Verify a Paystack transaction and activate a subscription plan",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Subscription"
+                ],
+                "summary": "Subscribe to a plan",
+                "parameters": [
+                    {
+                        "description": "Plan details and Paystack reference",
+                        "name": "payload",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "type": "object"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/subscription.Subscription"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/tables": {
+            "get": {
+                "description": "Get all tables for the business",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "tables"
+                ],
+                "summary": "List all tables",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Filter by section",
+                        "name": "section",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/fiber.Map"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "description": "Create a new table for the business",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "tables"
+                ],
+                "summary": "Create a new table",
+                "parameters": [
+                    {
+                        "description": "Table details",
+                        "name": "table",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/table.CreateTableRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/fiber.Map"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/fiber.Map"
+                        }
+                    }
+                }
+            }
+        },
+        "/tables/sections": {
+            "get": {
+                "description": "Get list of all sections in the business",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "tables"
+                ],
+                "summary": "Get sections",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/fiber.Map"
+                        }
+                    }
+                }
+            }
+        },
+        "/tables/{id}": {
+            "get": {
+                "description": "Get details of a specific table",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "tables"
+                ],
+                "summary": "Get a table",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Table ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/fiber.Map"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/fiber.Map"
+                        }
+                    }
+                }
+            },
+            "put": {
+                "description": "Update table details",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "tables"
+                ],
+                "summary": "Update a table",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Table ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Updated table details",
+                        "name": "table",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/table.UpdateTableRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/fiber.Map"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/fiber.Map"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "description": "Delete a table",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "tables"
+                ],
+                "summary": "Delete a table",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Table ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/fiber.Map"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/fiber.Map"
+                        }
+                    }
+                }
+            }
+        },
+        "/tables/{id}/orders": {
+            "get": {
+                "description": "Get all orders for a specific table",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "tables"
+                ],
+                "summary": "Get table orders",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Table ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/fiber.Map"
+                        }
+                    }
+                }
+            }
+        },
         "/terminals/register": {
             "post": {
                 "security": [
@@ -1783,7 +2806,7 @@ const docTemplate = `{
                         "schema": {
                             "type": "array",
                             "items": {
-                                "$ref": "#/definitions/user.User"
+                                "$ref": "#/definitions/pos-fiber-app_internal_user.User"
                             }
                         }
                     },
@@ -1833,7 +2856,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/user.User"
+                            "$ref": "#/definitions/pos-fiber-app_internal_user.User"
                         }
                     }
                 ],
@@ -1841,7 +2864,7 @@ const docTemplate = `{
                     "201": {
                         "description": "Created",
                         "schema": {
-                            "$ref": "#/definitions/user.User"
+                            "$ref": "#/definitions/pos-fiber-app_internal_user.User"
                         }
                     },
                     "400": {
@@ -1888,7 +2911,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/user.User"
+                            "$ref": "#/definitions/pos-fiber-app_internal_user.User"
                         }
                     },
                     "404": {
@@ -1937,7 +2960,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/user.User"
+                            "$ref": "#/definitions/pos-fiber-app_internal_user.User"
                         }
                     }
                 ],
@@ -1945,7 +2968,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/user.User"
+                            "$ref": "#/definitions/pos-fiber-app_internal_user.User"
                         }
                     },
                     "400": {
@@ -2082,12 +3105,29 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "email": {
-                    "type": "string",
-                    "example": "admin@biz.com"
+                    "type": "string"
                 },
                 "password": {
-                    "type": "string",
-                    "example": "password"
+                    "type": "string"
+                }
+            }
+        },
+        "auth.ResendOTPRequest": {
+            "type": "object",
+            "properties": {
+                "email": {
+                    "type": "string"
+                }
+            }
+        },
+        "auth.VerifyEmailRequest": {
+            "type": "object",
+            "properties": {
+                "code": {
+                    "type": "string"
+                },
+                "email": {
+                    "type": "string"
                 }
             }
         },
@@ -2097,19 +3137,44 @@ const docTemplate = `{
                 "address": {
                     "type": "string"
                 },
-                "city": {
+                "archive_frequency": {
                     "type": "string"
                 },
-                "created_at": {
+                "auto_archive_enabled": {
+                    "type": "boolean"
+                },
+                "city": {
                     "type": "string"
                 },
                 "currency": {
                     "$ref": "#/definitions/common.Currency"
                 },
+                "data_retention_months": {
+                    "description": "Data Management Settings",
+                    "type": "integer"
+                },
+                "google_drive_linked": {
+                    "type": "boolean"
+                },
                 "id": {
                     "type": "integer"
                 },
+                "installer_id": {
+                    "type": "integer"
+                },
+                "is_seeded": {
+                    "type": "boolean"
+                },
+                "last_archived_at": {
+                    "type": "string"
+                },
                 "name": {
+                    "type": "string"
+                },
+                "subscription_expiry": {
+                    "type": "string"
+                },
+                "subscription_status": {
                     "type": "string"
                 },
                 "tenant_id": {
@@ -2117,9 +3182,6 @@ const docTemplate = `{
                 },
                 "type": {
                     "$ref": "#/definitions/common.BusinessType"
-                },
-                "updated_at": {
-                    "type": "string"
                 }
             }
         },
@@ -2135,7 +3197,9 @@ const docTemplate = `{
                 "HOTEL",
                 "PHARMACY",
                 "CLINIC",
-                "LPG_STATION"
+                "LPG_STATION",
+                "BOUTIQUE",
+                "OTHER"
             ],
             "x-enum-varnames": [
                 "TypeRestaurant",
@@ -2147,7 +3211,9 @@ const docTemplate = `{
                 "TypeHotel",
                 "TypePharmacy",
                 "TypeClinic",
-                "TypeLPGStation"
+                "TypeLPGStation",
+                "TypeBoutique",
+                "TypeOther"
             ]
         },
         "business.CreateBusinessRequest": {
@@ -2192,7 +3258,9 @@ const docTemplate = `{
                         "RETAIL",
                         "HOTEL",
                         "PHARMACY",
-                        "CLINIC"
+                        "CLINIC",
+                        "BOUTIQUE",
+                        "OTHER"
                     ],
                     "allOf": [
                         {
@@ -2235,6 +3303,12 @@ const docTemplate = `{
                 "address": {
                     "type": "string"
                 },
+                "archive_frequency": {
+                    "type": "string"
+                },
+                "auto_archive_enabled": {
+                    "type": "boolean"
+                },
                 "city": {
                     "type": "string"
                 },
@@ -2251,6 +3325,10 @@ const docTemplate = `{
                         }
                     ]
                 },
+                "data_retention_months": {
+                    "description": "Data Management",
+                    "type": "integer"
+                },
                 "name": {
                     "type": "string"
                 },
@@ -2264,7 +3342,9 @@ const docTemplate = `{
                         "RETAIL",
                         "HOTEL",
                         "PHARMACY",
-                        "CLINIC"
+                        "CLINIC",
+                        "BOUTIQUE",
+                        "OTHER"
                     ],
                     "allOf": [
                         {
@@ -2280,9 +3360,6 @@ const docTemplate = `{
                 "business_id": {
                     "type": "integer"
                 },
-                "created_at": {
-                    "type": "string"
-                },
                 "description": {
                     "type": "string"
                 },
@@ -2290,9 +3367,6 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "name": {
-                    "type": "string"
-                },
-                "updated_at": {
                     "type": "string"
                 }
             }
@@ -2309,7 +3383,9 @@ const docTemplate = `{
                 "HOTEL",
                 "PHARMACY",
                 "CLINIC",
-                "LPG_STATION"
+                "LPG_STATION",
+                "BOUTIQUE",
+                "OTHER"
             ],
             "x-enum-varnames": [
                 "TypeRestaurant",
@@ -2321,7 +3397,9 @@ const docTemplate = `{
                 "TypeHotel",
                 "TypePharmacy",
                 "TypeClinic",
-                "TypeLPGStation"
+                "TypeLPGStation",
+                "TypeBoutique",
+                "TypeOther"
             ]
         },
         "common.Currency": {
@@ -2359,6 +3437,10 @@ const docTemplate = `{
                     "example": "invalid request"
                 }
             }
+        },
+        "fiber.Map": {
+            "type": "object",
+            "additionalProperties": true
         },
         "inventory.Inventory": {
             "type": "object",
@@ -2402,6 +3484,7 @@ const docTemplate = `{
                     "required": [
                         "address",
                         "city",
+                        "currency",
                         "name",
                         "type"
                     ],
@@ -2412,6 +3495,9 @@ const docTemplate = `{
                         "city": {
                             "type": "string"
                         },
+                        "currency": {
+                            "type": "string"
+                        },
                         "name": {
                             "type": "string",
                             "minLength": 2
@@ -2420,6 +3506,9 @@ const docTemplate = `{
                             "type": "string"
                         }
                     }
+                },
+                "referral_token": {
+                    "type": "string"
                 },
                 "user": {
                     "type": "object",
@@ -2442,7 +3531,8 @@ const docTemplate = `{
                             "minLength": 2
                         },
                         "password": {
-                            "type": "string"
+                            "type": "string",
+                            "minLength": 4
                         }
                     }
                 }
@@ -2484,6 +3574,51 @@ const docTemplate = `{
                 }
             }
         },
+        "pos-fiber-app_internal_user.User": {
+            "type": "object",
+            "properties": {
+                "account_name": {
+                    "type": "string"
+                },
+                "account_number": {
+                    "type": "string"
+                },
+                "active": {
+                    "type": "boolean"
+                },
+                "bank_name": {
+                    "type": "string"
+                },
+                "email": {
+                    "type": "string"
+                },
+                "first_name": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "is_verified": {
+                    "type": "boolean"
+                },
+                "last_name": {
+                    "type": "string"
+                },
+                "outlet_id": {
+                    "type": "integer"
+                },
+                "phone": {
+                    "type": "string"
+                },
+                "role": {
+                    "description": "OWNER / MANAGER / CASHIER / INSTALLER",
+                    "type": "string"
+                },
+                "tenant_id": {
+                    "type": "string"
+                }
+            }
+        },
         "product.CreateProductRequest": {
             "type": "object",
             "required": [
@@ -2492,6 +3627,9 @@ const docTemplate = `{
                 "price"
             ],
             "properties": {
+                "barcode": {
+                    "type": "string"
+                },
                 "category_id": {
                     "type": "integer"
                 },
@@ -2504,6 +3642,9 @@ const docTemplate = `{
                 },
                 "image_url": {
                     "type": "string"
+                },
+                "min_stock": {
+                    "type": "integer"
                 },
                 "name": {
                     "type": "string",
@@ -2514,6 +3655,9 @@ const docTemplate = `{
                 },
                 "sku": {
                     "type": "string"
+                },
+                "stock": {
+                    "type": "integer"
                 }
             }
         },
@@ -2524,6 +3668,9 @@ const docTemplate = `{
                     "type": "boolean",
                     "default": true
                 },
+                "barcode": {
+                    "type": "string"
+                },
                 "business_id": {
                     "type": "integer"
                 },
@@ -2532,9 +3679,6 @@ const docTemplate = `{
                 },
                 "cost": {
                     "type": "number"
-                },
-                "created_at": {
-                    "type": "string"
                 },
                 "description": {
                     "type": "string"
@@ -2545,6 +3689,9 @@ const docTemplate = `{
                 "image_url": {
                     "type": "string"
                 },
+                "min_stock": {
+                    "type": "integer"
+                },
                 "name": {
                     "type": "string"
                 },
@@ -2554,8 +3701,8 @@ const docTemplate = `{
                 "sku": {
                     "type": "string"
                 },
-                "updated_at": {
-                    "type": "string"
+                "stock": {
+                    "type": "integer"
                 }
             }
         },
@@ -2564,6 +3711,9 @@ const docTemplate = `{
             "properties": {
                 "active": {
                     "type": "boolean"
+                },
+                "barcode": {
+                    "type": "string"
                 },
                 "category_id": {
                     "type": "integer"
@@ -2578,6 +3728,9 @@ const docTemplate = `{
                 "image_url": {
                     "type": "string"
                 },
+                "min_stock": {
+                    "type": "integer"
+                },
                 "name": {
                     "type": "string"
                 },
@@ -2586,6 +3739,9 @@ const docTemplate = `{
                 },
                 "sku": {
                     "type": "string"
+                },
+                "stock": {
+                    "type": "integer"
                 }
             }
         },
@@ -2621,6 +3777,46 @@ const docTemplate = `{
                 },
                 "payment_method": {
                     "type": "string"
+                },
+                "tax": {
+                    "type": "number"
+                }
+            }
+        },
+        "sale.CreateSaleRequest": {
+            "type": "object",
+            "required": [
+                "amount_paid",
+                "items",
+                "payment_method"
+            ],
+            "properties": {
+                "amount_paid": {
+                    "type": "number",
+                    "minimum": 0
+                },
+                "customer_name": {
+                    "type": "string"
+                },
+                "customer_phone": {
+                    "type": "string"
+                },
+                "discount": {
+                    "type": "number",
+                    "minimum": 0
+                },
+                "items": {
+                    "type": "array",
+                    "minItems": 1,
+                    "items": {
+                        "$ref": "#/definitions/sale.SaleItemRequest"
+                    }
+                },
+                "payment_method": {
+                    "type": "string"
+                },
+                "tax": {
+                    "type": "number"
                 }
             }
         },
@@ -2650,6 +3846,21 @@ const docTemplate = `{
                 }
             }
         },
+        "sale.PrepStatus": {
+            "type": "string",
+            "enum": [
+                "PENDING",
+                "PREPARING",
+                "READY",
+                "SERVED"
+            ],
+            "x-enum-varnames": [
+                "PrepPending",
+                "PrepPreparing",
+                "PrepReady",
+                "PrepServed"
+            ]
+        },
         "sale.Sale": {
             "type": "object",
             "properties": {
@@ -2659,6 +3870,10 @@ const docTemplate = `{
                 "cashier_id": {
                     "type": "integer"
                 },
+                "cashier_name": {
+                    "description": "Populated manually or via join",
+                    "type": "string"
+                },
                 "created_at": {
                     "type": "string"
                 },
@@ -2667,6 +3882,10 @@ const docTemplate = `{
                 },
                 "customer_phone": {
                     "type": "string"
+                },
+                "daily_sequence": {
+                    "description": "resets daily",
+                    "type": "integer"
                 },
                 "discount": {
                     "type": "number"
@@ -2680,12 +3899,23 @@ const docTemplate = `{
                         "$ref": "#/definitions/sale.SaleItem"
                     }
                 },
+                "order_type": {
+                    "description": "dine-in, takeaway, delivery",
+                    "type": "string"
+                },
                 "payment_method": {
                     "description": "CASH, CARD, TRANSFER, etc.",
                     "type": "string"
                 },
+                "preparation_status": {
+                    "$ref": "#/definitions/sale.PrepStatus"
+                },
                 "sale_date": {
                     "type": "string"
+                },
+                "shift_id": {
+                    "description": "Link to cashier's shift",
+                    "type": "integer"
                 },
                 "status": {
                     "$ref": "#/definitions/sale.SaleStatus"
@@ -2695,6 +3925,14 @@ const docTemplate = `{
                 },
                 "synced_at": {
                     "description": "for offline sync",
+                    "type": "string"
+                },
+                "table_id": {
+                    "description": "New fields for table management and shift tracking",
+                    "type": "integer"
+                },
+                "table_number": {
+                    "description": "Snapshot for history",
                     "type": "string"
                 },
                 "tax": {
@@ -2720,6 +3958,9 @@ const docTemplate = `{
                 "id": {
                     "type": "integer"
                 },
+                "preparation_status": {
+                    "$ref": "#/definitions/sale.PrepStatus"
+                },
                 "product_id": {
                     "type": "integer"
                 },
@@ -2739,6 +3980,21 @@ const docTemplate = `{
                 "unit_price": {
                     "description": "snapshot",
                     "type": "number"
+                }
+            }
+        },
+        "sale.SaleItemRequest": {
+            "type": "object",
+            "required": [
+                "product_id",
+                "quantity"
+            ],
+            "properties": {
+                "product_id": {
+                    "type": "integer"
+                },
+                "quantity": {
+                    "type": "integer"
                 }
             }
         },
@@ -2851,6 +4107,226 @@ const docTemplate = `{
                 }
             }
         },
+        "subscription.BusinessModule": {
+            "type": "object",
+            "properties": {
+                "business_id": {
+                    "type": "integer"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "expiry_date": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "is_active": {
+                    "type": "boolean"
+                },
+                "module": {
+                    "$ref": "#/definitions/subscription.ModuleType"
+                },
+                "updated_at": {
+                    "type": "string"
+                }
+            }
+        },
+        "subscription.ModuleType": {
+            "type": "string",
+            "enum": [
+                "KITCHEN_DISPLAY",
+                "TABLE_MANAGEMENT",
+                "SAVE_DRAFTS",
+                "ADVANCED_INVENTORY"
+            ],
+            "x-enum-varnames": [
+                "ModuleKDS",
+                "ModuleTables",
+                "ModuleDrafts",
+                "ModuleInventory"
+            ]
+        },
+        "subscription.PlanType": {
+            "type": "string",
+            "enum": [
+                "TRIAL",
+                "MONTHLY",
+                "QUARTERLY",
+                "ANNUAL"
+            ],
+            "x-enum-varnames": [
+                "PlanTrial",
+                "PlanMonthly",
+                "PlanQuarterly",
+                "PlanAnnual"
+            ]
+        },
+        "subscription.PromoCode": {
+            "type": "object",
+            "properties": {
+                "active": {
+                    "type": "boolean"
+                },
+                "code": {
+                    "type": "string"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "discount_percentage": {
+                    "type": "number"
+                },
+                "expiry_date": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "max_uses": {
+                    "type": "integer"
+                },
+                "updated_at": {
+                    "type": "string"
+                },
+                "used_count": {
+                    "type": "integer"
+                }
+            }
+        },
+        "subscription.Subscription": {
+            "type": "object",
+            "properties": {
+                "amount_paid": {
+                    "type": "number"
+                },
+                "auto_renew": {
+                    "type": "boolean"
+                },
+                "business": {
+                    "$ref": "#/definitions/business.Business"
+                },
+                "business_id": {
+                    "type": "integer"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "end_date": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "payment_method": {
+                    "type": "string"
+                },
+                "plan_type": {
+                    "$ref": "#/definitions/subscription.PlanType"
+                },
+                "start_date": {
+                    "type": "string"
+                },
+                "status": {
+                    "$ref": "#/definitions/subscription.SubscriptionStatus"
+                },
+                "transaction_reference": {
+                    "type": "string"
+                },
+                "updated_at": {
+                    "type": "string"
+                }
+            }
+        },
+        "subscription.SubscriptionPlan": {
+            "type": "object",
+            "properties": {
+                "currency": {
+                    "type": "string"
+                },
+                "duration_days": {
+                    "type": "integer"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "price": {
+                    "type": "number"
+                },
+                "product_limit": {
+                    "type": "integer"
+                },
+                "type": {
+                    "$ref": "#/definitions/subscription.PlanType"
+                },
+                "user_limit": {
+                    "type": "integer"
+                }
+            }
+        },
+        "subscription.SubscriptionStatus": {
+            "type": "string",
+            "enum": [
+                "ACTIVE",
+                "EXPIRED",
+                "CANCELLED",
+                "GRACE_PERIOD"
+            ],
+            "x-enum-varnames": [
+                "StatusActive",
+                "StatusExpired",
+                "StatusCancelled",
+                "StatusGracePeriod"
+            ]
+        },
+        "table.CreateTableRequest": {
+            "type": "object",
+            "required": [
+                "table_number"
+            ],
+            "properties": {
+                "capacity": {
+                    "type": "integer"
+                },
+                "section": {
+                    "type": "string"
+                },
+                "table_number": {
+                    "type": "string"
+                }
+            }
+        },
+        "table.TableStatus": {
+            "type": "string",
+            "enum": [
+                "available",
+                "occupied",
+                "reserved"
+            ],
+            "x-enum-varnames": [
+                "StatusAvailable",
+                "StatusOccupied",
+                "StatusReserved"
+            ]
+        },
+        "table.UpdateTableRequest": {
+            "type": "object",
+            "properties": {
+                "capacity": {
+                    "type": "integer"
+                },
+                "section": {
+                    "type": "string"
+                },
+                "status": {
+                    "$ref": "#/definitions/table.TableStatus"
+                },
+                "table_number": {
+                    "type": "string"
+                }
+            }
+        },
         "terminal.Terminal": {
             "type": "object",
             "properties": {
@@ -2873,58 +4349,26 @@ const docTemplate = `{
                     "type": "string"
                 }
             }
-        },
-        "user.User": {
-            "type": "object",
-            "properties": {
-                "active": {
-                    "type": "boolean"
-                },
-                "createdAt": {
-                    "type": "string"
-                },
-                "email": {
-                    "description": "Email     string ` + "`" + `gorm:\"uniqueIndex\"` + "`" + `",
-                    "type": "string"
-                },
-                "firstName": {
-                    "type": "string"
-                },
-                "id": {
-                    "type": "integer"
-                },
-                "lastName": {
-                    "type": "string"
-                },
-                "outletID": {
-                    "type": "integer"
-                },
-                "password": {
-                    "type": "string"
-                },
-                "role": {
-                    "description": "OWNER / MANAGER / CASHIER",
-                    "type": "string"
-                },
-                "tenantID": {
-                    "type": "string"
-                },
-                "updatedAt": {
-                    "type": "string"
-                }
-            }
+        }
+    },
+    "securityDefinitions": {
+        "BusinessID": {
+            "description": "JWT Authorization header using the Bearer scheme. Enter your token only (without \"Bearer \" prefix).",
+            "type": "apiKey",
+            "name": "X-Current-Business-ID",
+            "in": "header"
         }
     }
 }`
 
 // SwaggerInfo holds exported Swagger Info so clients can modify it
 var SwaggerInfo = &swag.Spec{
-	Version:          "",
-	Host:             "",
-	BasePath:         "",
-	Schemes:          []string{},
-	Title:            "",
-	Description:      "",
+	Version:          "1.0",
+	Host:             "localhost:5050",
+	BasePath:         "/api/v1",
+	Schemes:          []string{"http", "https"},
+	Title:            "POS System API",
+	Description:      "Multi-tenant POS backend built with Fiber",
 	InfoInstanceName: "swagger",
 	SwaggerTemplate:  docTemplate,
 	LeftDelim:        "{{",
