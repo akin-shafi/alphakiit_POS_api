@@ -13,7 +13,6 @@ import (
 	"pos-fiber-app/internal/user"
 	"strings"
 	"time"
-
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 )
