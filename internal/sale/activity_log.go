@@ -97,7 +97,8 @@ func GetRecentActivityByBusiness(db *gorm.DB, businessID uint, limit int) ([]Sal
 		limit = 50
 	}
 
-	var logs []SaleActivityLogWithUser
+	// Initialize slice to ensure it's never nil
+	logs := make([]SaleActivityLogWithUser, 0)
 	err := db.Table("sale_activity_logs").
 		Select("sale_activity_logs.*, users.first_name || ' ' || users.last_name as user_name").
 		Joins("LEFT JOIN users ON users.id = sale_activity_logs.performed_by").

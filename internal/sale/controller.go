@@ -564,6 +564,10 @@ func GetActivitiesHandler(db *gorm.DB) fiber.Handler {
 		if err != nil {
 			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 		}
+		// Ensure we always return an array, even if empty
+		if logs == nil {
+			logs = []SaleActivityLogWithUser{}
+		}
 		return c.JSON(logs)
 	}
 }
