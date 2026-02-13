@@ -118,7 +118,7 @@ func UpdateHandler(db *gorm.DB) fiber.Handler {
 		}
 
 		// Basic validation
-		if req.Name == "" && req.Type == "" && req.Address == "" && req.City == "" && req.DataRetentionMonths == nil && req.AutoArchiveEnabled == nil && req.ArchiveFrequency == "" && req.WhatsAppEnabled == nil && req.WhatsAppNumber == "" {
+		if req.Name == "" && req.Type == "" && req.Address == "" && req.City == "" && req.DataRetentionMonths == nil && req.AutoArchiveEnabled == nil && req.ArchiveFrequency == "" && req.WhatsAppEnabled == nil && req.WhatsAppNumber == "" && req.TableManagementEnabled == nil && req.SaveToDraftEnabled == nil {
 			return fiber.NewError(fiber.StatusBadRequest, "at least one field must be provided for update")
 		}
 
@@ -157,6 +157,12 @@ func UpdateHandler(db *gorm.DB) fiber.Handler {
 		}
 		if req.WhatsAppNumber != "" {
 			updates["whatsapp_number"] = req.WhatsAppNumber
+		}
+		if req.TableManagementEnabled != nil {
+			updates["table_management_enabled"] = *req.TableManagementEnabled
+		}
+		if req.SaveToDraftEnabled != nil {
+			updates["save_to_draft_enabled"] = *req.SaveToDraftEnabled
 		}
 
 		// Perform update

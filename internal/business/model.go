@@ -37,6 +37,8 @@ type Business struct {
 	ReportingEnabled    bool           `gorm:"default:true" json:"reporting_enabled"`
 	DailyReportTime     string         `gorm:"type:varchar(5);default:'22:00'" json:"daily_report_time"` // HH:MM in 24h format
 	LastReportSentAt    *time.Time     `json:"last_report_sent_at,omitempty"`
+	TableManagementEnabled *bool       `gorm:"default:false" json:"table_management_enabled"`
+	SaveToDraftEnabled     *bool       `gorm:"default:true" json:"save_to_draft_enabled"`
 	ActiveModules       []string       `gorm:"-" json:"active_modules,omitempty"` // populated on fetch
 	CreatedAt           time.Time      `json:"-"`
 	UpdatedAt           time.Time      `json:"-"`

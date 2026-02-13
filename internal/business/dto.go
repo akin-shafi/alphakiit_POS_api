@@ -26,6 +26,8 @@ type UpdateBusinessRequest struct {
 	DataRetentionMonths *int   `json:"data_retention_months,omitempty"`
 	AutoArchiveEnabled  *bool  `json:"auto_archive_enabled,omitempty"`
 	ArchiveFrequency    string `json:"archive_frequency,omitempty"`
-	WhatsAppEnabled     *bool  `json:"whatsapp_enabled,omitempty"`
-	WhatsAppNumber      string `json:"whatsapp_number,omitempty"`
+	WhatsAppEnabled        *bool  `json:"whatsapp_enabled,omitempty"`
+	WhatsAppNumber         string `json:"whatsapp_number,omitempty"`
+	TableManagementEnabled *bool  `json:"table_management_enabled,omitempty"`
+	SaveToDraftEnabled     *bool  `json:"save_to_draft_enabled,omitempty"`
 }
