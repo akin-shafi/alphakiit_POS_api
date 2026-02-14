@@ -3,8 +3,10 @@ package business
 import (
 	"fmt"
 	"os"
+	"pos-fiber-app/internal/common"
 	"pos-fiber-app/internal/seed"
 	"pos-fiber-app/internal/types"
+	"strings"
 
 	"github.com/gofiber/fiber/v2"
 	"gorm.io/gorm"
@@ -51,10 +53,10 @@ func CreateHandler(db *gorm.DB) fiber.Handler {
 		biz := &Business{
 			TenantID: claims.TenantID,
 			Name:     req.Name,
-			Type:     req.Type,
+			Type:     common.BusinessType(strings.ToUpper(string(req.Type))),
 			Address:  req.Address,
 			City:     req.City,
-			Currency: req.Currency,
+			Currency: common.Currency(strings.ToUpper(string(req.Currency))),
 		}
 
 		if err := db.Create(biz).Error; err != nil {
@@ -130,7 +132,7 @@ func UpdateHandler(db *gorm.DB) fiber.Handler {
 			updates["name"] = req.Name
 		}
 		if req.Type != "" {
-			updates["type"] = req.Type
+			updates["type"] = strings.ToUpper(string(req.Type))
 		}
 		if req.Address != "" {
 			updates["address"] = req.Address

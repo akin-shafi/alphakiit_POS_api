@@ -2,6 +2,7 @@ package tutorial
 
 import (
 	"pos-fiber-app/internal/common"
+	"strings"
 
 	"github.com/gofiber/fiber/v2"
 )
@@ -17,10 +18,10 @@ func NewTutorialController(service *TutorialService) *TutorialController {
 func (c *TutorialController) GetTutorials(ctx *fiber.Ctx) error {
 	businessTypeStr, _ := ctx.Locals("business_type").(string)
 
-	businessType := common.BusinessType(businessTypeStr)
+	businessType := common.BusinessType(strings.ToUpper(businessTypeStr))
 	if businessType == "" {
 		// Fallback for testing or public access if allowed
-		businessType = common.BusinessType(ctx.Query("type", "RETAIL"))
+		businessType = common.BusinessType(strings.ToUpper(ctx.Query("type", "RETAIL")))
 	}
 
 	tutorials, err := c.service.GetTutorialsByBusinessType(businessType)

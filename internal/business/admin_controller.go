@@ -3,6 +3,7 @@ package business
 import (
 	"pos-fiber-app/internal/common"
 	"pos-fiber-app/internal/seed"
+	"strings"
 
 	"github.com/gofiber/fiber/v2"
 	"gorm.io/gorm"
@@ -59,10 +60,10 @@ func (ac *AdminBusinessController) CreateBusiness(c *fiber.Ctx) error {
 	biz := Business{
 		TenantID: req.TenantID,
 		Name:     req.Name,
-		Type:     req.Type,
+		Type:     common.BusinessType(strings.ToUpper(string(req.Type))),
 		Address:  req.Address,
 		City:     req.City,
-		Currency: common.Currency(req.Currency), // Using string for now, mapped to enum if needed
+		Currency: common.Currency(strings.ToUpper(req.Currency)), // Also normalize currency
 	}
 
 	if err := ac.db.Create(&biz).Error; err != nil {

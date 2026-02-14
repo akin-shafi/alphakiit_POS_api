@@ -2,6 +2,7 @@ package seed
 
 import (
 	"pos-fiber-app/internal/common"
+	"strings"
 
 	"github.com/gofiber/fiber/v2"
 	"gorm.io/gorm"
@@ -30,7 +31,7 @@ func SeedHandler(db *gorm.DB) fiber.Handler {
 		}
 
 		bizTypeStr := c.Query("business_type")
-		bizType := common.BusinessType(bizTypeStr)
+		bizType := common.BusinessType(strings.ToUpper(bizTypeStr))
 
 		if err := SeedSampleData(db, bizID, bizType); err != nil {
 			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
