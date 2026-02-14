@@ -2,7 +2,6 @@ package user
 
 import (
 	"fmt"
-	"pos-fiber-app/internal/business"
 	"pos-fiber-app/internal/email"
 	"pos-fiber-app/internal/otp"
 	"pos-fiber-app/internal/subscription"
@@ -65,9 +64,11 @@ func CreateUserHandler(service *UserService) fiber.Handler {
 		rawPassword := req.Password
 
 		// --- Check Subscription User Limit ---
-		var biz business.Business
+		var biz struct {
+			ID uint
+		}
 		// Find business for this tenant (assuming 1:1 or primary business)
-		if err := service.db.Where("tenant_id = ?", tenantID).First(&biz).Error; err == nil {
+		if err := service.db.Table("businesses").Where("tenant_id = ?", tenantID).First(&biz).Error; err == nil {
 			sub, _ := subscription.GetSubscriptionStatus(service.db, biz.ID)
 
 			// Default limit (e.g. Trial or Fallback)

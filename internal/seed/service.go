@@ -2,13 +2,11 @@ package seed
 
 import (
 	"fmt"
-	"pos-fiber-app/internal/business"
 	"pos-fiber-app/internal/category"
 	"pos-fiber-app/internal/common"
 	"pos-fiber-app/internal/inventory"
 	"pos-fiber-app/internal/product"
 	"pos-fiber-app/internal/subscription"
-	"pos-fiber-app/internal/user"
 	"time"
 
 	"gorm.io/gorm"
@@ -61,8 +59,11 @@ func SeedInstallerData(db *gorm.DB) error {
 		}
 
 		// 3. Sample Installers and Mock Commissions (if any exist)
-		var installers []user.User
-		tx.Where("role = ?", "INSTALLER").Find(&installers)
+		var installers []struct {
+			ID   uint
+			Role string
+		}
+		tx.Table("users").Where("role = ?", "INSTALLER").Find(&installers)
 
 		if len(installers) > 0 {
 			installer := installers[0]
@@ -125,9 +126,12 @@ func SeedSampleData(db *gorm.DB, bizID uint, bizType common.BusinessType) error 
 	}
 
 	return db.Transaction(func(tx *gorm.DB) error {
-		// Verify if already seeded
-		var biz business.Business
-		if err := tx.First(&biz, bizID).Error; err != nil {
+		// Verify if already seeded (use anonymous struct to break import cycle)
+		var biz struct {
+			ID       uint `gorm:"primaryKey"`
+			IsSeeded bool
+		}
+		if err := tx.Table("businesses").First(&biz, bizID).Error; err != nil {
 			return err
 		}
 		if biz.IsSeeded {
@@ -172,7 +176,7 @@ func SeedSampleData(db *gorm.DB, bizID uint, bizType common.BusinessType) error 
 		}
 
 		// Mark as seeded
-		if err := tx.Model(&biz).Update("is_seeded", true).Error; err != nil {
+		if err := tx.Table("businesses").Where("id = ?", bizID).Update("is_seeded", true).Error; err != nil {
 			return err
 		}
 

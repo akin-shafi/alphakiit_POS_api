@@ -2,6 +2,7 @@ package business
 
 import (
 	"pos-fiber-app/internal/common"
+	"pos-fiber-app/internal/seed"
 
 	"github.com/gofiber/fiber/v2"
 	"gorm.io/gorm"
@@ -69,7 +70,7 @@ func (ac *AdminBusinessController) CreateBusiness(c *fiber.Ctx) error {
 	}
 
 	// Optional: Seed
-	SeedNewBusiness(ac.db, &biz)
+	seed.SeedSampleData(ac.db, biz.ID, biz.Type)
 
 	return c.Status(201).JSON(biz)
 }

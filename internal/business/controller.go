@@ -3,6 +3,7 @@ package business
 import (
 	"fmt"
 	"os"
+	"pos-fiber-app/internal/seed"
 	"pos-fiber-app/internal/types"
 
 	"github.com/gofiber/fiber/v2"
@@ -60,11 +61,9 @@ func CreateHandler(db *gorm.DB) fiber.Handler {
 			return fiber.ErrInternalServerError
 		}
 
-		// Optional: Trigger seeding here
-		SeedNewBusiness(db, biz) // Synchronous, safe, fast
+		// Trigger seeding using central seed service
+		seed.SeedSampleData(db, biz.ID, biz.Type)
 
-		// Or fire-and-forget if you prefer:
-		// go SeedNewBusiness(db, biz)
 		return c.Status(fiber.StatusCreated).JSON(biz)
 	}
 }

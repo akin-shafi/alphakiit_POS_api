@@ -180,6 +180,42 @@ var sampleData = map[common.BusinessType][]SampleCategory{
 			},
 		},
 	},
+	common.TypeLPGStation: {
+		{
+			Name: "Bulk Gas Refills",
+			Products: []SampleProduct{
+				{Name: "Cooking Gas (per 10g)", Price: 12, Cost: 8, Stock: 10000, SKUPrefix: "GAS"},
+				{Name: "LPG Refill 12.5kg", Price: 15000, Cost: 10000, Stock: 20, SKUPrefix: "GAS"},
+				{Name: "LPG Refill 6kg", Price: 7200, Cost: 5000, Stock: 30, SKUPrefix: "GAS"},
+			},
+		},
+		{
+			Name: "Gas Accessories",
+			Products: []SampleProduct{
+				{Name: "Gas Regulator (Standard)", Price: 5000, Cost: 3500, Stock: 15, SKUPrefix: "ACC"},
+				{Name: "Gas Hose (per yard)", Price: 1500, Cost: 1000, Stock: 50, SKUPrefix: "ACC"},
+				{Name: "Gas Lighter", Price: 1000, Cost: 500, Stock: 40, SKUPrefix: "ACC"},
+			},
+		},
+	},
+	common.TypeBakery: {
+		{
+			Name: "Fresh Bread",
+			Products: []SampleProduct{
+				{Name: "Family Loaf (600g)", Price: 1200, Cost: 800, Stock: 40, SKUPrefix: "BRD"},
+				{Name: "Wheat Bread", Price: 1500, Cost: 1000, Stock: 25, SKUPrefix: "BRD"},
+				{Name: "Coconut Bread", Price: 1800, Cost: 1200, Stock: 15, SKUPrefix: "BRD"},
+			},
+		},
+		{
+			Name: "Pastries & Cakes",
+			Products: []SampleProduct{
+				{Name: "Sausage Roll", Price: 1200, Cost: 700, Stock: 50, SKUPrefix: "PAS"},
+				{Name: "Meat Pie", Price: 1500, Cost: 900, Stock: 50, SKUPrefix: "PAS"},
+				{Name: "Chocolate Fudge Cake", Price: 18000, Cost: 12000, Stock: 5, SKUPrefix: "CKE"},
+			},
+		},
+	},
 	common.TypeOther: {
 		{
 			Name: "General Supplies",

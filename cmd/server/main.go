@@ -73,11 +73,10 @@ func main() {
 	config.LoadEnv()
 
 	db := database.ConnectDB()
-	tutorial.SeedTutorials(db) // Seed tutorial content
-
 	// if err := database.RunMigrations(db); err != nil {
 	// 	log.Fatalf("Failed to run migrations: %v", err)
 	// }
+	// tutorial.SeedTutorials(db) // Seed tutorial content (after migrations)
 
 	// === Start Background Tasks ===
 	archiver.StartDataLifecycleManager(db)
