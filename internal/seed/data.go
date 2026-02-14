@@ -22,9 +22,10 @@ var sampleData = map[common.BusinessType][]SampleCategory{
 		{
 			Name: "Main Course",
 			Products: []SampleProduct{
-				{Name: "Jollof Rice with Grilled Chicken", Price: 4500, Cost: 2500, Stock: 50, SKUPrefix: "MAI"},
-				{Name: "Fried Rice with Beef", Price: 4000, Cost: 2200, Stock: 40, SKUPrefix: "MAI"},
-				{Name: "Egusi Soup with Pounded Yam", Price: 5000, Cost: 3000, Stock: 30, SKUPrefix: "MAI"},
+				{Name: "Jollof Rice", Price: 4500, Cost: 2500, Stock: 50, SKUPrefix: "MAI"},
+				{Name: "White Rice", Price: 4000, Cost: 2200, Stock: 40, SKUPrefix: "MAI"},
+				{Name: "Fried Rice", Price: 4000, Cost: 2200, Stock: 40, SKUPrefix: "MAI"},
+				{Name: "Egusi Soup", Price: 5000, Cost: 3000, Stock: 30, SKUPrefix: "MAI"},
 				{Name: "Chicken Burger & Fries", Price: 3500, Cost: 1800, Stock: 25, SKUPrefix: "MAI"},
 			},
 		},
@@ -42,6 +43,21 @@ var sampleData = map[common.BusinessType][]SampleCategory{
 				{Name: "Fresh Orange Juice", Price: 1200, Cost: 500, Stock: 40, SKUPrefix: "BEV"},
 				{Name: "Chapman Cocktail", Price: 2500, Cost: 1000, Stock: 30, SKUPrefix: "BEV"},
 				{Name: "Bottled Water 75cl", Price: 300, Cost: 150, Stock: 200, SKUPrefix: "BEV"},
+			},
+		},
+		{
+			Name: "Proteins",
+			Products: []SampleProduct{
+				{Name: "Beef", Price: 1200, Cost: 800, Stock: 50, SKUPrefix: "PRO"},
+				{Name: "Chicken", Price: 800, Cost: 400, Stock: 40, SKUPrefix: "PRO"},
+				{Name: "Fish", Price: 500, Cost: 250, Stock: 60, SKUPrefix: "PRO"},
+			},
+		},
+		{
+			Name: "Sides",
+			Products: []SampleProduct{
+				{Name: "Plantain", Price: 800, Cost: 300, Stock: 60, SKUPrefix: "SID"},
+				{Name: "Salad", Price: 1200, Cost: 500, Stock: 40, SKUPrefix: "SID"},
 			},
 		},
 	},
