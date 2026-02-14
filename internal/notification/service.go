@@ -62,12 +62,15 @@ func formatCurrency(amount float64) string {
 }
 
 // SendShiftClosedReport sends a standard report when a shift is closed normally
-func (n *NotificationService) SendShiftClosedReport(businessID uint, shiftID uint, cashierName string, totalSales float64, count int, currency string) {
+func (n *NotificationService) SendShiftClosedReport(businessID uint, shiftID uint, cashierName string, totalSales float64, count int, currency string, notes string) {
 	title := "Shift Closed Successfully"
 	message := fmt.Sprintf(
 		"Shift #%d has been closed by %s.\nTotal Sales: %s%s\nTransactions: %d",
 		shiftID, cashierName, currency, formatCurrency(totalSales), count,
 	)
+	if notes != "" {
+		message += fmt.Sprintf("\nNotes/Readings: %s", notes)
+	}
 	n.SendSecurityAlert(businessID, title, message)
 }
 

@@ -34,6 +34,7 @@ import (
 	"pos-fiber-app/internal/subscription"
 	"pos-fiber-app/internal/table" // NEW: Table management
 	"pos-fiber-app/internal/terminal"
+	"pos-fiber-app/internal/tutorial"
 	"pos-fiber-app/internal/user"
 	"pos-fiber-app/pkg/database"
 
@@ -72,6 +73,7 @@ func main() {
 	config.LoadEnv()
 
 	db := database.ConnectDB()
+	tutorial.SeedTutorials(db) // Seed tutorial content
 
 	// if err := database.RunMigrations(db); err != nil {
 	// 	log.Fatalf("Failed to run migrations: %v", err)
@@ -169,6 +171,7 @@ func main() {
 	table.RegisterTableRoutes(businessScoped, db)
 	printing.RegisterRoutes(businessScoped, db)
 	recipe.RegisterRecipeRoutes(businessScoped, db)
+	tutorial.RegisterRoutes(businessScoped, db)
 	notification.RegisterNotificationRoutes(protected, db)
 
 	// === Start server ===

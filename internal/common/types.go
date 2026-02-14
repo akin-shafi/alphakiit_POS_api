@@ -17,6 +17,7 @@ const (
 	TypeClinic      BusinessType = "CLINIC"
 	TypeLPGStation  BusinessType = "LPG_STATION"
 	TypeBoutique    BusinessType = "BOUTIQUE"
+	TypeBakery      BusinessType = "BAKERY"
 	TypeOther       BusinessType = "OTHER"
 	// Add more business types here in the future
 )

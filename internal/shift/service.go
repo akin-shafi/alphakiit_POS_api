@@ -2,7 +2,9 @@ package shift
 
 import (
 	"errors"
+	"fmt"
 	"pos-fiber-app/internal/notification"
+	"strconv"
 	"time"
 
 	"gorm.io/gorm"
@@ -43,7 +45,7 @@ func (s *ShiftService) StartShift(businessID uint, userID uint, userName string,
 	return shift, nil
 }
 
-func (s *ShiftService) EndShift(shiftID uint, endCash float64, closedByName string) (*Shift, error) {
+func (s *ShiftService) EndShift(shiftID uint, endCash float64, closedByName string, readings []ActiveReading) (*Shift, error) {
 	var shift Shift
 	if err := s.db.First(&shift, shiftID).Error; err != nil {
 		return nil, errors.New("shift not found")
@@ -58,6 +60,20 @@ func (s *ShiftService) EndShift(shiftID uint, endCash float64, closedByName stri
 	shift.EndCash = &endCash
 	shift.ClosedByName = closedByName
 	shift.Status = "closed"
+
+	// Process Readings
+	for _, r := range readings {
+		// Create a reading record
+		// Calculate opening (ideally fetched from previous shift close or start of day)
+		// For this pilot, we just save the closing value.
+		reading := ShiftReading{
+			ShiftID:      shift.ID,
+			ProductID:    r.ProductID,
+			ClosingValue: r.ClosingValue,
+			CreatedAt:    time.Now(),
+		}
+		s.db.Create(&reading)
+	}
 
 	// Calculate variance
 	shift.ExpectedCash = shift.StartCash + shift.TotalCashSales
@@ -75,6 +91,16 @@ func (s *ShiftService) EndShift(shiftID uint, endCash float64, closedByName stri
 			Currency string
 		}
 		s.db.Table("businesses").Select("currency").Where("id = ?", shift.BusinessID).Scan(&businessObj)
+
+		// Convert readings to string notes if exist
+		readingsNote := ""
+		if len(readings) > 0 {
+			readingsNote = "\nPump Readings:"
+			for _, r := range readings {
+				// Ideally fetch product name too
+				readingsNote += "\n - Product ID " + strconv.Itoa(int(r.ProductID)) + ": " + fmt.Sprintf("%.2f", r.ClosingValue)
+			}
+		}
 
 		if shift.CashVariance != 0 {
 			notifier.SendShiftVarianceAlert(
@@ -95,6 +121,7 @@ func (s *ShiftService) EndShift(shiftID uint, endCash float64, closedByName stri
 				shift.TotalSales,
 				shift.TransactionCount,
 				businessObj.Currency,
+				readingsNote,
 			)
 		}
 	}()
@@ -119,7 +146,7 @@ func (s *ShiftService) GetActiveShift(businessID uint, userID uint) (*Shift, err
 
 func (s *ShiftService) ListByBusiness(businessID uint) ([]Shift, error) {
 	var shifts []Shift
-	err := s.db.Where("business_id = ?", businessID).Order("created_at desc").Limit(50).Find(&shifts).Error
+	err := s.db.Preload("Readings").Where("business_id = ?", businessID).Order("created_at desc").Limit(50).Find(&shifts).Error
 	return shifts, err
 }
 

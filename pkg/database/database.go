@@ -21,6 +21,7 @@ import (
 	"pos-fiber-app/internal/subscription"
 	"pos-fiber-app/internal/table"
 	"pos-fiber-app/internal/terminal"
+	"pos-fiber-app/internal/tutorial"
 	"pos-fiber-app/internal/user"
 )
 
@@ -62,12 +63,7 @@ func RunMigrations(db *gorm.DB) error {
 		&subscription.CommissionSetting{},
 		&subscription.TrainingResource{},
 		&subscription.PayoutRequest{},
-
-		// add all other models here...
-		// &models.Transaction{},
-		// &models.Payment{},
-		// &models.Customer{},
-		// etc.
+		&tutorial.Tutorial{},
 	)
 
 	if err != nil {

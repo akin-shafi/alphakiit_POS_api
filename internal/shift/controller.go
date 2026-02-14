@@ -12,7 +12,13 @@ type StartShiftRequest struct {
 }
 
 type EndShiftRequest struct {
-	EndCash float64 `json:"end_cash" validate:"required"`
+	EndCash  float64        `json:"end_cash" validate:"required"`
+	Readings []ReadingInput `json:"readings,omitempty"`
+}
+
+type ReadingInput struct {
+	ProductID    uint    `json:"product_id"`
+	ClosingValue float64 `json:"closing_value"`
 }
 
 type ShiftController struct {
@@ -62,7 +68,18 @@ func (c *ShiftController) EndShift(ctx *fiber.Ctx) error {
 
 	userName, _ := ctx.Locals("user_name").(string)
 
-	shift, err := c.service.EndShift(uint(shiftID), req.EndCash, userName)
+	// Convert Request Readings to Service Readings
+	var serviceReadings []ActiveReading
+	if len(req.Readings) > 0 {
+		for _, r := range req.Readings {
+			serviceReadings = append(serviceReadings, ActiveReading{
+				ProductID:    r.ProductID,
+				ClosingValue: r.ClosingValue,
+			})
+		}
+	}
+
+	shift, err := c.service.EndShift(uint(shiftID), req.EndCash, userName, serviceReadings)
 	if err != nil {
 		return fiber.NewError(fiber.StatusBadRequest, err.Error())
 	}

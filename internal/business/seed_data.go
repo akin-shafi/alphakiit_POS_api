@@ -228,41 +228,98 @@ var SeedTemplates = map[common.BusinessType]SeedTemplate{
 		Inventory: generateDefaultInventory(8, 30),
 	},
 
-	common.TypeLPGStation: { // or TypeLPGStation if you add a new type
+	common.TypeLPGStation: {
 		Categories: []category.Category{
-			{Name: "LPG Refills", Description: "Cooking gas refill by weight (per kg)"},
-			{Name: "Empty Cylinders", Description: "New gas cylinders in various sizes"},
-			{Name: "Accessories", Description: "Regulators, hoses, burners and other gas fittings"},
+			{Name: "LPG Refill (Bulk)", Description: "Cooking gas dispensed by weight"},
+			{Name: "Pre-filled Cylinders", Description: "Standard cylinder swaps"},
+			{Name: "Empty Cylinders", Description: "New gas cylinder sales"},
+			{Name: "Accessories", Description: "Regulators, hoses, and burners"},
 		},
 		Products: []product.Product{
-			// LPG Refills (price per kg ≈ ₦1200 in 2025)
-			{Name: "LPG Refill 1kg", Price: 1200, SKU: "LPG001"},
-			{Name: "LPG Refill 2kg", Price: 2400, SKU: "LPG002"},
-			{Name: "LPG Refill 3kg", Price: 3600, SKU: "LPG003"},
-			{Name: "LPG Refill 5kg", Price: 6000, SKU: "LPG005"},
-			{Name: "LPG Refill 6kg", Price: 7200, SKU: "LPG006"},
-			{Name: "LPG Refill 12kg", Price: 14400, SKU: "LPG012"},
-			{Name: "LPG Refill 12.5kg", Price: 15000, SKU: "LPG012"},
-			{Name: "LPG Refill 25kg", Price: 30000, SKU: "LPG025"},
-			{Name: "LPG Refill 50kg", Price: 60000, SKU: "LPG050"},
+			// The Core trick: Sell Gas in 10g units to allow fractional sales
+			// If 1kg = ₦1,200, then 10g = ₦12
+			// This allows selling 12.5kg as 1250 units
+			{Name: "Cooking Gas (per 10g)", Price: 12, SKU: "GAS-UNIT-10G", Description: "Base unit for gas sales. 100 units = 1kg"},
 
-			// Empty Cylinders (new, prices approximate for 2025)
-			{Name: "Empty Cylinder 3kg", Price: 12000, SKU: "CYL003"},
-			{Name: "Empty Cylinder 5kg", Price: 15000, SKU: "CYL005"},
-			{Name: "Empty Cylinder 6kg", Price: 18000, SKU: "CYL006"},
-			{Name: "Empty Cylinder 12.5kg", Price: 45000, SKU: "CYL012"},
-			{Name: "Empty Cylinder 25kg", Price: 80000, SKU: "CYL025"},
-			{Name: "Empty Cylinder 50kg", Price: 150000, SKU: "CYL050"},
+			// Standard Refills (For quick selection)
+			// These could be composites or just separate products if inventory is tracked strictly by weight
+			{Name: "LPG Refill 3kg", Price: 3600, SKU: "LPG-REF-3KG"},
+			{Name: "LPG Refill 5kg", Price: 6000, SKU: "LPG-REF-5KG"},
+			{Name: "LPG Refill 6kg", Price: 7200, SKU: "LPG-REF-6KG"},
+			{Name: "LPG Refill 12.5kg", Price: 15000, SKU: "LPG-REF-12.5KG"},
+			{Name: "LPG Refill 25kg", Price: 30000, SKU: "LPG-REF-25KG"},
+			{Name: "LPG Refill 50kg", Price: 60000, SKU: "LPG-REF-50KG"},
+
+			// Empty Cylinders
+			{Name: "New Cylinder 3kg", Price: 12000, SKU: "CYL-NEW-3KG"},
+			{Name: "New Cylinder 5kg", Price: 15000, SKU: "CYL-NEW-5KG"},
+			{Name: "New Cylinder 6kg", Price: 18000, SKU: "CYL-NEW-6KG"},
+			{Name: "New Cylinder 12.5kg", Price: 45000, SKU: "CYL-NEW-12.5KG"},
+			{Name: "New Cylinder 25kg", Price: 80000, SKU: "CYL-NEW-25KG"},
+			{Name: "New Cylinder 50kg", Price: 150000, SKU: "CYL-NEW-50KG"},
 
 			// Accessories
-			{Name: "Gas Regulator (Low Pressure)", Price: 5000, SKU: "ACC001"},
-			{Name: "Gas Hose (2m)", Price: 3000, SKU: "ACC002"},
-			{Name: "Gas Burner (Single)", Price: 8000, SKU: "ACC003"},
-			{Name: "Hose Clip (Pack of 2)", Price: 1000, SKU: "ACC004"},
-			{Name: "Cylinder Adapter", Price: 2000, SKU: "ACC005"},
-			{Name: "Gas Leak Detector Spray", Price: 3500, SKU: "ACC006"},
-			{Name: "Metered Regulator", Price: 12000, SKU: "ACC007"},
+			{Name: "Gas Regulator (Standard)", Price: 5000, SKU: "ACC-REG-STD"},
+			{Name: "Gas Hose (per yard)", Price: 1500, SKU: "ACC-HOSE-YD"},
+			{Name: "Hose Clips (Pair)", Price: 500, SKU: "ACC-CLIPS"},
+			{Name: "Gas Lighter", Price: 1000, SKU: "ACC-LIGHTER"},
 		},
-		Inventory: generateDefaultInventory(22, 30), // 22 products
+		Inventory: generateDefaultInventory(17, 100), // Higher default stock for testing
+	},
+
+	common.TypeBoutique: {
+		Categories: []category.Category{
+			{Name: "Men's Wear"},
+			{Name: "Women's Wear"},
+			{Name: "Kid's Wear"},
+			{Name: "Accessories"},
+			{Name: "Perfumes"},
+		},
+		Products: []product.Product{
+			{Name: "Formal Suit (Navy)", Price: 45000, SKU: "BTQ-MN-001"},
+			{Name: "White Dress Shirt", Price: 8500, SKU: "BTQ-MN-002"},
+			{Name: "Designer Evening Gown", Price: 65000, SKU: "BTQ-WN-001"},
+			{Name: "Floral Summer Dress", Price: 12500, SKU: "BTQ-WN-002"},
+			{Name: "School Uniform Set", Price: 15000, SKU: "BTQ-KD-001"},
+			{Name: "Leather Belt", Price: 5000, SKU: "BTQ-ACC-001"},
+			{Name: "Silk Scarf", Price: 4500, SKU: "BTQ-ACC-002"},
+			{Name: "Royal Oud Perfume", Price: 25000, SKU: "BTQ-PRF-001"},
+			{Name: "Ocean Breeze Mist", Price: 12000, SKU: "BTQ-PRF-002"},
+		},
+		Inventory: generateDefaultInventory(9, 20),
+	},
+
+	common.TypeBakery: {
+		Categories: []category.Category{
+			{Name: "Bread"},
+			{Name: "Cakes"},
+			{Name: "Pastries"},
+			{Name: "Cookies"},
+			{Name: "Flour & Supplies"},
+		},
+		Products: []product.Product{
+			{Name: "Family Loaf (600g)", Price: 1200, SKU: "BKY-BRD-01"},
+			{Name: "Wheat Bread", Price: 1500, SKU: "BKY-BRD-02"},
+			{Name: "Chocolate Fudge Cake", Price: 18000, SKU: "BKY-CKE-01"},
+			{Name: "Red Velvet Slite", Price: 2500, SKU: "BKY-CKE-02"},
+			{Name: "Sausage Roll", Price: 1200, SKU: "BKY-PAS-01"},
+			{Name: "Meat Pie", Price: 1500, SKU: "BKY-PAS-02"},
+			{Name: "Shortbread (Tin)", Price: 3500, SKU: "BKY-COK-01"},
+			{Name: "Ginger Snaps", Price: 800, SKU: "BKY-COK-02"},
+			{Name: "Baking Flour (5kg)", Price: 6500, SKU: "BKY-SPL-01"},
+		},
+		Inventory: generateDefaultInventory(9, 40),
+	},
+
+	common.TypeOther: {
+		Categories: []category.Category{
+			{Name: "General Products"},
+			{Name: "Services"},
+		},
+		Products: []product.Product{
+			{Name: "Miscellaneous Item", Price: 1000, SKU: "OTR-ITM-001"},
+			{Name: "Service Charge", Price: 5000, SKU: "OTR-SVC-001"},
+		},
+		Inventory: generateDefaultInventory(2, 100),
 	},
 }
