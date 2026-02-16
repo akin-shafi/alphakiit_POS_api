@@ -19,57 +19,44 @@ func RegisterManagementRoutes(r fiber.Router, db *gorm.DB) {
 
 // RegisterSaleRoutes registers all sales-related endpoints under the business-scoped group
 func RegisterSaleRoutes(r fiber.Router, db *gorm.DB) {
-	// Draft & Cart Management (Original)
-	r.Post("/sales", CreateSaleHandler(db)) // One-shot sale
+	// 1. Un-guarded Sales Routes (Basic access for all subscriptions)
+	r.Post("/sales", CreateSaleHandler(db))                     // One-shot sale
+	r.Post("/sales/:sale_id/complete", CompleteSaleHandler(db)) // Finalize basic sale
+	r.Post("/sales/:sale_id/void", VoidSaleHandler(db))         // Void basic sale
+	r.Get("/sales", ListSalesHandler(db))                       // List with filters
+	r.Get("/sales/:sale_id", GetSaleHandler(db))                // Get sale + items
 
-	// Drafts Module Guard
-	// Drafts Module Guard - Scoped to /sales/draft* and related
-	// We use a specific group logic or manual wrapping to prevent leakage
-	drafts := r.Group("/sales", middleware.ModuleGuard(db, subscription.ModuleDrafts))
-	drafts.Post("/draft", CreateDraftHandler(db))                    // /sales/draft
-	drafts.Post("/:sale_id/items", AddItemHandler(db))               // /sales/:sale_id/items
-	drafts.Post("/:sale_id/hold", HoldSaleHandler(db))               // /sales/:sale_id/hold
-	drafts.Get("/held", ListHeldSalesHandler(db))                    // /sales/held
-	drafts.Delete("/:sale_id/items/:item_id", RemoveItemHandler(db)) // /sales/:sale_id/items/:item_id
+	// 2. Drafts & Cart Management (Guarded by ModuleDrafts)
+	// We use a specific route matching or a more specific group
+	drafts := r.Group("/sales")
+	draftGuard := middleware.ModuleGuard(db, subscription.ModuleDrafts)
 
-	// Tables Module Guard - child of drafts (requires both)
-	tables := drafts.Group("", middleware.ModuleGuard(db, subscription.ModuleTables))
-	tables.Post("/draft/new", CreateDraftWithTableHandler(db))                // /sales/draft/new
-	tables.Post("/:sale_id/items/reserve", AddItemWithReservationHandler(db)) // /sales/:sale_id/items/reserve
-	tables.Post("/:sale_id/resume", ResumeDraftHandler(db))                   // /sales/:sale_id/resume
-	tables.Delete("/:sale_id/draft", DeleteDraftHandler(db))                  // /sales/:sale_id/draft
-	tables.Get("/drafts", ListDraftsHandler(db))                              // /sales/drafts
-	tables.Post("/:sale_id/transfer", TransferBillHandler(db))                // /sales/:sale_id/transfer
-	tables.Post("/:sale_id/merge", MergeBillsHandler(db))                     // /sales/:sale_id/merge
+	drafts.Post("/draft", draftGuard, CreateDraftHandler(db))
+	drafts.Post("/:sale_id/items", draftGuard, AddItemHandler(db))
+	drafts.Post("/:sale_id/hold", draftGuard, HoldSaleHandler(db))
+	drafts.Get("/held", draftGuard, ListHeldSalesHandler(db))
+	drafts.Delete("/:sale_id/items/:item_id", draftGuard, RemoveItemHandler(db))
+	drafts.Get("/drafts", draftGuard, ListDraftsHandler(db))
 
-	// Sale Actions (Original)
-	r.Post("/sales/:sale_id/complete", CompleteSaleHandler(db)) // Finalize payment (basic)
-	r.Post("/sales/:sale_id/void", VoidSaleHandler(db))         // Void completed sale (basic)
+	// 3. Tables Management (Guarded by both Drafts AND Tables)
+	tableGuard := middleware.ModuleGuard(db, subscription.ModuleTables)
+	tables := drafts.Group("/draft/tables", draftGuard, tableGuard)
+	tables.Post("/new", CreateDraftWithTableHandler(db))
+	tables.Post("/:sale_id/items/reserve", AddItemWithReservationHandler(db))
+	tables.Post("/:sale_id/resume", ResumeDraftHandler(db))
+	tables.Delete("/:sale_id/draft", DeleteDraftHandler(db))
+	tables.Post("/:sale_id/transfer", TransferBillHandler(db))
+	tables.Post("/:sale_id/merge", MergeBillsHandler(db)) // /sales/:sale_id/merge
 
-	// NEW: Enhanced Sale Actions with Reservations
-	// The original instruction had `tables.Handler()`, which is not a valid Fiber middleware function.
-	// Assuming the intent was to apply the `ModuleTables` guard, the correct way is to either:
-	// 1. Define these routes within the `tables` group: `tables.Post(...)`
-	// 2. Explicitly apply the middleware: `r.Post("/path", middleware.ModuleGuard(db, subscription.ModuleTables), Handler(db))`
-	// Following the instruction to "make the change faithfully" and "syntactically correct",
-	// and given `tables` is a `fiber.Router` (group), the most faithful and correct interpretation
-	// of `tables.Handler()` in this context is to move the routes into the `tables` group.
-	tables.Post("/:sale_id/complete/reserve", CompleteSaleWithReservationHandler(db)) // /sales/:sale_id/complete/reserve
-	tables.Post("/:sale_id/void/reserve", VoidSaleWithReservationHandler(db))         // /sales/:sale_id/void/reserve
-
-	// NEW: Bill Management
-	// These routes were already defined within the `tables` group above.
-	// To avoid duplication and ensure they are under the correct guard,
-	// these lines are commented out as they are redundant.
-	// r.Post("/sales/:sale_id/transfer", TransferBillHandler(db)) // Transfer bill to another table
-	// r.Post("/sales/:sale_id/merge", MergeBillsHandler(db))      // Merge multiple bills
 	// NEW: Activity Logs
 	r.Get("/activities", GetActivitiesHandler(db))              // Global audit log
 	r.Get("/sales/:sale_id/history", GetSaleHistoryHandler(db)) // Get sale activity history
-	r.Get("/sales", ListSalesHandler(db))                       // List with filters
-	r.Get("/sales/:sale_id", GetSaleHandler(db))                // Get sale + items
 	r.Get("/sales/reports/daily", DailyReportHandler(db))       // Daily summary
 	r.Get("/sales/reports/range", SalesReportHandler(db))       // Custom date range report
+
+	// NEW: Enhanced Sale Actions with Reservations
+	tables.Post("/:sale_id/complete/reserve", CompleteSaleWithReservationHandler(db)) // /sales/:sale_id/complete/reserve
+	tables.Post("/:sale_id/void/reserve", VoidSaleWithReservationHandler(db))         // /sales/:sale_id/void/reserve
 
 	// REAL-TIME KITCHEN DISPLAY (WS)
 	r.Get("/ws/kds", func(c *fiber.Ctx) error {

@@ -84,30 +84,30 @@ var AvailablePlans = []SubscriptionPlan{
 	},
 	{
 		Type:         PlanServiceMonthly,
-		Name:         "Service POS (Monthly)",
+		Name:         "Basic Sales POS (Monthly)",
 		DurationDays: 30,
 		Price:        15000,
 		Currency:     "NGN",
 		UserLimit:    2,
-		ProductLimit: 0, // No inventory
+		ProductLimit: 25, // Strictly for kiosks/LPG/small shops
 	},
 	{
 		Type:         PlanServiceQuarterly,
-		Name:         "Service POS (Quarterly)",
+		Name:         "Basic Sales POS (Quarterly)",
 		DurationDays: 90,
 		Price:        40000,
 		Currency:     "NGN",
-		UserLimit:    2,
-		ProductLimit: 0,
+		UserLimit:    3, // +1 User Bonus
+		ProductLimit: 25,
 	},
 	{
 		Type:         PlanServiceAnnual,
-		Name:         "Service POS (Annual)",
+		Name:         "Basic Sales POS (Annual)",
 		DurationDays: 365,
 		Price:        150000,
 		Currency:     "NGN",
-		UserLimit:    2, // Restricted to keep segmentation clean
-		ProductLimit: 0,
+		UserLimit:    5, // +3 User Bonus
+		ProductLimit: 25,
 	},
 }
 

@@ -53,6 +53,7 @@ func RunMigrations(db *gorm.DB) error {
 		&sale.SaleSummary{},        // NEW: Sale summaries for archiving
 		&sale.SaleActivityLog{},    // NEW: Sale activity logs
 		&shift.Shift{},             // NEW: Shift management
+		&shift.ShiftReading{},      // NEW: Shift readings for fuel/gas stations
 		&table.Table{},             // NEW: Table management
 		&recipe.RecipeIngredient{}, // NEW: Recipe management (BOM)
 		&subscription.Subscription{},
