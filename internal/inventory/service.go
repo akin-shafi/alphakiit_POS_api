@@ -63,9 +63,99 @@ func AdjustStock(db *gorm.DB, productID, businessID uint, quantity int) error {
 		return fmt.Errorf("insufficient stock: available %d, requested %d", inv.CurrentStock, -quantity)
 	}
 
+	// Check if product is tracked by rounds (Bulk Stock Rounds)
+	var prod struct {
+		TrackByRound bool
+	}
+	if err := db.Table("products").Select("track_by_round").Where("id = ? AND business_id = ?", productID, businessID).Scan(&prod).Error; err == nil && prod.TrackByRound {
+		// quantity is negative for deduction, positive for restock/void
+		return AdjustStockFromRound(db, productID, businessID, float64(quantity))
+	}
+
 	inv.CurrentStock = newStock
 	inv.LastRestocked = time.Now()
 	return db.Save(&inv).Error
+}
+
+func AdjustStockFromRound(db *gorm.DB, productID, businessID uint, quantity float64) error {
+	var round InventoryRound
+	// Find the current OPEN round for this product
+	err := db.Where("product_id = ? AND business_id = ? AND status = 'OPEN'", productID, businessID).
+		Order("start_date DESC").First(&round).Error
+
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) && quantity < 0 {
+			return errors.New("no open stock round found for this product")
+		}
+		// If it's a restock (voiding) maybe we don't strictly need a round, but for now we follow the rule
+		if err != nil {
+			return err
+		}
+	}
+
+	newRemaining := round.RemainingVolume + quantity
+	if newRemaining < 0 && quantity < 0 {
+		return fmt.Errorf("insufficient round stock: available %.3f, requested %.3f", round.RemainingVolume, -quantity)
+	}
+
+	round.RemainingVolume = newRemaining
+	// Auto-close if it reaches exactly 0? Maybe better to let the user close it manually as requested.
+	return db.Save(&round).Error
+}
+
+func StartNewRound(db *gorm.DB, businessID, productID uint, totalVolume float64) (*InventoryRound, error) {
+	// First, check if there's already an OPEN round
+	var existing int64
+	db.Model(&InventoryRound{}).Where("product_id = ? AND business_id = ? AND status = 'OPEN'", productID, businessID).Count(&existing)
+	if existing > 0 {
+		return nil, errors.New("there is already an open round for this product")
+	}
+
+	round := &InventoryRound{
+		BusinessID:      businessID,
+		ProductID:       productID,
+		TotalVolume:     totalVolume,
+		RemainingVolume: totalVolume,
+		Status:          "OPEN",
+		StartDate:       time.Now(),
+	}
+
+	if err := db.Create(round).Error; err != nil {
+		return nil, err
+	}
+
+	return round, nil
+}
+
+func CloseRound(db *gorm.DB, businessID, roundID uint) error {
+	var round InventoryRound
+	if err := db.First(&round, "id = ? AND business_id = ?", roundID, businessID).Error; err != nil {
+		return err
+	}
+
+	now := time.Now()
+	round.Status = "CLOSED"
+	round.ClosedAt = &now
+
+	return db.Save(&round).Error
+}
+
+func GetActiveRound(db *gorm.DB, businessID, productID uint) (*InventoryRound, error) {
+	var round InventoryRound
+	err := db.Where("product_id = ? AND business_id = ? AND status = 'OPEN'", productID, businessID).First(&round).Error
+	if err != nil {
+		return nil, err
+	}
+	return &round, nil
+}
+
+func GetAllActiveRounds(db *gorm.DB, businessID uint) ([]InventoryRound, error) {
+	var rounds []InventoryRound
+	err := db.Where("business_id = ? AND status = 'OPEN'", businessID).Order("start_date DESC").Find(&rounds).Error
+	if err != nil {
+		return nil, err
+	}
+	return rounds, nil
 }
 
 func GetStock(db *gorm.DB, productID, businessID uint) (*Inventory, error) {

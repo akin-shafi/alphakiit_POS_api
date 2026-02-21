@@ -47,6 +47,7 @@ func RunMigrations(db *gorm.DB) error {
 		&category.Category{},
 		&product.Product{},
 		&inventory.Inventory{},
+		&inventory.InventoryRound{},   // NEW: Bulk stock rounds
 		&inventory.StockReservation{}, // NEW: Stock reservations
 		&sale.Sale{},
 		&sale.SaleItem{},

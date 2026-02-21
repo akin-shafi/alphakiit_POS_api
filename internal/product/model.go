@@ -20,6 +20,8 @@ type Product struct {
 	Stock       int            `json:"stock"`
 	MinStock    int            `json:"min_stock"`
 	Barcode     string         `gorm:"size:100" json:"barcode,omitempty"`
+	TrackByRound bool          `gorm:"default:false" json:"track_by_round"`
+	UnitOfMeasure string        `gorm:"size:20" json:"unit_of_measure,omitempty"` // e.g., Liters, Tons
 	Active      bool           `json:"active" default:"true"`
 	CreatedAt   time.Time      `json:"-"`
 	UpdatedAt   time.Time      `json:"-"`

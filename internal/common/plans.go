@@ -33,6 +33,7 @@ const (
 	ModuleWhatsApp   ModuleType = "WHATSAPP_ALERTS"
 	ModuleCompliance ModuleType = "AUTOMATED_COMPLIANCE"
 	ModuleQRMenu     ModuleType = "DIGITAL_MENU_QR"
+	ModuleBulkStock  ModuleType = "BULK_STOCK_MANAGEMENT"
 )
 
 type SubscriptionPlan struct {
@@ -166,6 +167,12 @@ var AvailableModules = []ModulePlan{
 		Name:        "QR Digital Menu",
 		Price:       8000,
 		Description: "Public QR-based digital menu with live product updates",
+	},
+	{
+		Type:        ModuleBulkStock,
+		Name:        "Bulk Stock & Round Tracking",
+		Price:       12000,
+		Description: "Specialized tracking for fuel, gas, and bulk commodities.",
 	},
 }
 
