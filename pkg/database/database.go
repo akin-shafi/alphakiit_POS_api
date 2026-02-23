@@ -7,6 +7,7 @@ import (
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 
+	"pos-fiber-app/internal/advert"
 	"pos-fiber-app/internal/auth" // if you have password_reset_otp table
 	"pos-fiber-app/internal/business"
 	"pos-fiber-app/internal/category"
@@ -37,6 +38,7 @@ func RunMigrations(db *gorm.DB) error {
 	// Order is important: migrate parent tables first
 	err := db.AutoMigrate(
 		&otp.OTP{},
+		&advert.Advert{},
 		&auth.RefreshToken{}, // if you have password_reset_otp table
 		&user.User{},
 		&business.Business{},

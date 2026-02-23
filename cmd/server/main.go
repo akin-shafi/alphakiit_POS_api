@@ -14,6 +14,7 @@ import (
 	// NEW: Modern Swaggo for Fiber v2/v3 + OpenAPI 3
 
 	"pos-fiber-app/docs" // Keep this for swag init to generate docs
+	"pos-fiber-app/internal/advert"
 	"pos-fiber-app/internal/archiver"
 	"pos-fiber-app/internal/auth"
 	"pos-fiber-app/internal/business"
@@ -128,6 +129,7 @@ func main() {
 	onboarding.RegisterRoutes(apiV1, db)
 	subscription.RegisterPublicRoutes(apiV1, db)
 	seed.RegisterPublicRoutes(apiV1, db)
+	advert.RegisterPublicAdvertRoutes(apiV1, db)
 
 	// Auth (Public part: login, verify-otp, password-reset)
 	auth.RegisterAuthRoutes(apiV1.Group("/auth"), db)
@@ -143,6 +145,7 @@ func main() {
 	user.RegisterUserRoutes(apiV1, protected, db)
 
 	business.RegisterBusinessRoutes(protected, db)
+	advert.RegisterAdvertRoutes(protected, db)
 	business.RegisterAdminRoutes(protected, db)
 	sale.RegisterManagementRoutes(protected, db)
 	outlet.RegisterRoutes(protected, db)
