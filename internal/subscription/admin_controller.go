@@ -27,7 +27,6 @@ func (ac *AdminController) GetAllSubscriptions(c *fiber.Ctx) error {
 	var subscriptions []Subscription
 
 	result := ac.db.
-		Preload("Business").
 		Order("created_at DESC").
 		Find(&subscriptions)
 
