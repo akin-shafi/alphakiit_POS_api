@@ -5,6 +5,7 @@ import (
 	"os"
 	"pos-fiber-app/internal/common"
 	"pos-fiber-app/internal/seed"
+	"pos-fiber-app/internal/subscription"
 	"pos-fiber-app/internal/types"
 	"strings"
 
@@ -175,6 +176,9 @@ func UpdateHandler(db *gorm.DB) fiber.Handler {
 			return fiber.ErrInternalServerError
 		}
 
+		// Trigger trial activation evaluation
+		go subscription.EvaluateTrialActivation(db, biz.ID)
+
 		return c.JSON(biz)
 	}
 }
@@ -254,3 +258,26 @@ func GoogleCallbackHandler(db *gorm.DB) fiber.Handler {
 // @Param id path uint true "Business ID"
 // @Success 200 {object} map[string]string
 // @Router /businesses/{id}/purge [post]
+
+// GetTrialChecklistHandler returns the trial activation checklist for the current business
+func GetTrialChecklistHandler(db *gorm.DB) fiber.Handler {
+	return func(c *fiber.Ctx) error {
+		bizID := c.Locals("current_business_id").(uint)
+		if bizID == 0 {
+			return fiber.NewError(fiber.StatusBadRequest, "no business context")
+		}
+
+		var checklist TrialChecklist
+		if err := db.Where("business_id = ?", bizID).First(&checklist).Error; err != nil {
+			if err == gorm.ErrRecordNotFound {
+				// Create it if it doesn't exist
+				checklist = TrialChecklist{BusinessID: bizID}
+				db.Create(&checklist)
+			} else {
+				return fiber.ErrInternalServerError
+			}
+		}
+
+		return c.JSON(checklist)
+	}
+}

@@ -111,6 +111,9 @@ func CreateSaleHandler(db *gorm.DB) fiber.Handler {
 			return handleSaleError(err)
 		}
 
+		// Trigger trial activation evaluation
+		go subscription.EvaluateTrialActivation(db, bizID)
+
 		return c.Status(fiber.StatusCreated).JSON(receipt)
 	}
 }
@@ -252,6 +255,9 @@ func CompleteSaleHandler(db *gorm.DB) fiber.Handler {
 		if subscription.HasModule(db, bizID, subscription.ModuleKDS) {
 			GlobalKDSHub.BroadcastOrder(bizID, EventOrderPaid, saleID)
 		}
+
+		// Trigger trial activation evaluation
+		go subscription.EvaluateTrialActivation(db, bizID)
 
 		return c.JSON(receipt)
 	}

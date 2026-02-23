@@ -104,6 +104,11 @@ func CreateUserHandler(service *UserService) fiber.Handler {
 			return c.Status(500).JSON(fiber.Map{"error": err.Error()})
 		}
 
+		// Trigger trial activation evaluation (reuse biz from subscription check above)
+		if biz.ID > 0 {
+			go subscription.EvaluateTrialActivation(service.db, biz.ID)
+		}
+
 		// Generate OTP for verification
 		code, _ := otp.GenerateOTP()
 		otpEntry := otp.OTP{

@@ -4,6 +4,7 @@ package product
 import (
 	"fmt"
 	"pos-fiber-app/internal/common"
+	"pos-fiber-app/internal/subscription"
 
 	"github.com/gofiber/fiber/v2"
 	"gorm.io/gorm"
@@ -109,6 +110,9 @@ func CreateHandler(db *gorm.DB) fiber.Handler {
 		if err != nil {
 			return fiber.ErrInternalServerError
 		}
+
+		// Trigger trial activation evaluation
+		go subscription.EvaluateTrialActivation(db, bizID)
 
 		return c.Status(fiber.StatusCreated).JSON(product)
 	}

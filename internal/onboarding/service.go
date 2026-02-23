@@ -13,6 +13,7 @@ import (
 	"pos-fiber-app/internal/user"
 	"strings"
 	"time"
+
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 )
@@ -29,15 +30,23 @@ func OnboardBusiness(
 		tenantID := uuid.New().String()[:8]
 
 		biz := &business.Business{
-			TenantID: tenantID,
-			Name:     strings.TrimSpace(payload.Business.Name),
-			Type:     common.BusinessType(payload.Business.Type),
-			Address:  payload.Business.Address,
-			City:     payload.Business.City,
-			Currency: common.Currency(payload.Business.Currency),
+			TenantID:                tenantID,
+			Name:                    strings.TrimSpace(payload.Business.Name),
+			Type:                    common.BusinessType(payload.Business.Type),
+			Address:                 payload.Business.Address,
+			City:                    payload.Business.City,
+			Currency:                common.Currency(payload.Business.Currency),
+			TrialActivationDeadline: func() *time.Time { t := time.Now().Add(72 * time.Hour); return &t }(),
 		}
 
 		if err := tx.Create(biz).Error; err != nil {
+			return err
+		}
+
+		// Initialize Trial Checklist
+		if err := tx.Create(&business.TrialChecklist{
+			BusinessID: biz.ID,
+		}).Error; err != nil {
 			return err
 		}
 

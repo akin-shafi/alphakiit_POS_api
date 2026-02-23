@@ -43,6 +43,7 @@ func RunMigrations(db *gorm.DB) error {
 		&user.User{},
 		&business.Business{},
 		&business.Tenant{}, // if you're still using the Tenant table
+		&business.TrialChecklist{},
 		&outlet.Outlet{},
 		&terminal.Terminal{},
 		&terminal.Printer{},

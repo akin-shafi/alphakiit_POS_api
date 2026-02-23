@@ -37,10 +37,11 @@ func HandleCommission(db *gorm.DB, sub *Subscription) error {
 		return nil
 	}
 
-	// 1. Get the business to find the installer
+	// 1. Get the business to find the installer and check activation status
 	var biz struct {
-		ID          uint
-		InstallerID *uint
+		ID             uint
+		InstallerID    *uint
+		TrialActivated bool
 	}
 	if err := db.Table("businesses").Where("id = ?", sub.BusinessID).First(&biz).Error; err != nil {
 		return err
@@ -48,6 +49,11 @@ func HandleCommission(db *gorm.DB, sub *Subscription) error {
 
 	if biz.InstallerID == nil {
 		return nil // No installer associated
+	}
+
+	// Installer commission is ONLY valid for Activated Trials.
+	if !biz.TrialActivated {
+		return nil // Merchant hasn't reached activation threshold yet
 	}
 
 	// 2. Determine if this is ONBOARDING or RENEWAL
@@ -172,7 +178,16 @@ func CheckSubscriptionAccess(db *gorm.DB, businessID uint) (bool, SubscriptionSt
 
 	now := time.Now()
 	if now.After(sub.EndDate) {
-		// Calculate grace period (7 days)
+		// No grace period for trials - immediate lock
+		if sub.PlanType == PlanTrial {
+			if sub.Status != StatusExpired {
+				sub.Status = StatusExpired
+				db.Save(sub)
+			}
+			return false, StatusExpired, nil
+		}
+
+		// Calculate grace period (7 days) for paid plans
 		graceExpiry := sub.EndDate.AddDate(0, 0, 7)
 		if now.Before(graceExpiry) {
 			if sub.Status != StatusGracePeriod {

@@ -23,26 +23,32 @@ type Business struct {
 	SubscriptionExpiry *time.Time          `json:"subscription_expiry,omitempty"`
 	InstallerID        *uint               `gorm:"index" json:"installer_id,omitempty"`
 	// Data Management Settings
-	DataRetentionMonths int            `gorm:"default:6" json:"data_retention_months"`
-	AutoArchiveEnabled  bool           `gorm:"default:false" json:"auto_archive_enabled"`
-	ArchiveFrequency    string         `gorm:"type:varchar(20);default:'monthly'" json:"archive_frequency"`
-	GoogleDriveLinked   bool           `gorm:"default:false" json:"google_drive_linked"`
-	GoogleAccessToken   string         `json:"-"`
-	GoogleRefreshToken  string         `json:"-"`
-	GoogleTokenExpiry   *time.Time     `json:"-"`
-	GoogleDriveFolderID string         `json:"-"`
-	LastArchivedAt      *time.Time     `json:"last_archived_at,omitempty"`
-	WhatsAppEnabled     bool           `gorm:"default:false" json:"whatsapp_enabled"`
-	WhatsAppNumber      string         `gorm:"type:varchar(20)" json:"whatsapp_number"`
-	ReportingEnabled    bool           `gorm:"default:true" json:"reporting_enabled"`
-	DailyReportTime     string         `gorm:"type:varchar(5);default:'22:00'" json:"daily_report_time"` // HH:MM in 24h format
-	LastReportSentAt    *time.Time     `json:"last_report_sent_at,omitempty"`
-	TableManagementEnabled *bool       `gorm:"default:false" json:"table_management_enabled"`
-	SaveToDraftEnabled     *bool       `gorm:"default:true" json:"save_to_draft_enabled"`
-	ActiveModules       []string       `gorm:"-" json:"active_modules,omitempty"` // populated on fetch
-	CreatedAt           time.Time      `json:"-"`
-	UpdatedAt           time.Time      `json:"-"`
-	DeletedAt           gorm.DeletedAt `gorm:"index" json:"-"`
+	DataRetentionMonths    int        `gorm:"default:6" json:"data_retention_months"`
+	AutoArchiveEnabled     bool       `gorm:"default:false" json:"auto_archive_enabled"`
+	ArchiveFrequency       string     `gorm:"type:varchar(20);default:'monthly'" json:"archive_frequency"`
+	GoogleDriveLinked      bool       `gorm:"default:false" json:"google_drive_linked"`
+	GoogleAccessToken      string     `json:"-"`
+	GoogleRefreshToken     string     `json:"-"`
+	GoogleTokenExpiry      *time.Time `json:"-"`
+	GoogleDriveFolderID    string     `json:"-"`
+	LastArchivedAt         *time.Time `json:"last_archived_at,omitempty"`
+	WhatsAppEnabled        bool       `gorm:"default:false" json:"whatsapp_enabled"`
+	WhatsAppNumber         string     `gorm:"type:varchar(20)" json:"whatsapp_number"`
+	ReportingEnabled       bool       `gorm:"default:true" json:"reporting_enabled"`
+	DailyReportTime        string     `gorm:"type:varchar(5);default:'22:00'" json:"daily_report_time"` // HH:MM in 24h format
+	LastReportSentAt       *time.Time `json:"last_report_sent_at,omitempty"`
+	TableManagementEnabled *bool      `gorm:"default:false" json:"table_management_enabled"`
+	SaveToDraftEnabled     *bool      `gorm:"default:true" json:"save_to_draft_enabled"`
+	ActiveModules          []string   `gorm:"-" json:"active_modules,omitempty"` // populated on fetch
+
+	// Trial Activation System
+	TrialActivated          bool       `gorm:"default:false" json:"trial_activated"`
+	TrialActivationDeadline *time.Time `json:"trial_activation_deadline,omitempty"`
+	ActivatedAt             *time.Time `json:"activated_at,omitempty"`
+
+	CreatedAt time.Time      `json:"-"`
+	UpdatedAt time.Time      `json:"-"`
+	DeletedAt gorm.DeletedAt `gorm:"index" json:"-"`
 }
 
 // Tenant model (keep if still used elsewhere)
