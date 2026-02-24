@@ -6,6 +6,10 @@ import (
 	"gorm.io/gorm"
 )
 
+func RegisterPublicProductRoutes(r fiber.Router, db *gorm.DB) {
+	r.Get("/public/menu/:slug", GetPublicMenuBySlugHandler(db))
+}
+
 func RegisterProductRoutes(r fiber.Router, db *gorm.DB) {
 	r.Get("/products", ListHandler(db))
 	r.Post("/products", CreateHandler(db))

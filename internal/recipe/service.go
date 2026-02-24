@@ -1,6 +1,7 @@
 package recipe
 
 import (
+	"fmt"
 	"pos-fiber-app/internal/inventory"
 	"pos-fiber-app/internal/subscription"
 
@@ -63,7 +64,12 @@ func (s *RecipeService) RemoveIngredient(id, businessID uint) error {
 // Otherwise, it falls back to standard single-product stock adjustment.
 func (s *RecipeService) AdjustStockWithRecipe(tx *gorm.DB, productID, businessID uint, sellQuantity int) error {
 	// 1. Check if the business has the Recipe Management module enabled
-	if !subscription.HasModule(s.db, businessID, subscription.ModuleRecipe) {
+	// Use the transaction tx to avoid potential connection state issues
+	hasRecipeModule, err := subscription.HasModuleWithError(tx, businessID, subscription.ModuleRecipe)
+	if err != nil {
+		return fmt.Errorf("module check failed: %w", err)
+	}
+	if !hasRecipeModule {
 		return inventory.AdjustStock(tx, productID, businessID, -sellQuantity)
 	}
 

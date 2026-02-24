@@ -323,6 +323,7 @@ func CreateSale(db *gorm.DB, businessID uint, tenantID string, outletID uint, ca
 		// Inventory check & deduction
 		recipeSvc := recipe.NewRecipeService(db)
 		if err := recipeSvc.AdjustStockWithRecipe(tx, prod.ID, businessID, itemReq.Quantity); err != nil {
+			// Extract cleaner error from inventory service if possible
 			return nil, fmt.Errorf("insufficient stock for %s: %w", prod.Name, err)
 		}
 

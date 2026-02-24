@@ -39,7 +39,10 @@ type Business struct {
 	LastReportSentAt       *time.Time `json:"last_report_sent_at,omitempty"`
 	TableManagementEnabled *bool      `gorm:"default:false" json:"table_management_enabled"`
 	SaveToDraftEnabled     *bool      `gorm:"default:true" json:"save_to_draft_enabled"`
+	Slug                   string     `gorm:"uniqueIndex;size:100" json:"slug"`
 	ActiveModules          []string   `gorm:"-" json:"active_modules,omitempty"` // populated on fetch
+	VATRate                float64    `gorm:"default:7.5" json:"vat_rate"`
+	TaxNumber              string     `gorm:"size:50" json:"tax_number"`
 
 	// Trial Activation System
 	TrialActivated          bool       `gorm:"default:false" json:"trial_activated"`

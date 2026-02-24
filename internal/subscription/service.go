@@ -212,6 +212,9 @@ func HasModule(db *gorm.DB, businessID uint, module ModuleType) bool {
 	var busMod BusinessModule
 	err := db.Where("business_id = ? AND module = ? AND is_active = ?", businessID, module, true).First(&busMod).Error
 	if err != nil {
+		// Only RecordNotFound is a "safe" error that doesn't necessarily mean the transaction is poisoned
+		// though in some cases even this can poison.
+		// For a more robust fix, we should check if we are in a transaction, but GORM doesn't make that easy.
 		return false
 	}
 
@@ -221,4 +224,22 @@ func HasModule(db *gorm.DB, businessID uint, module ModuleType) bool {
 	}
 
 	return true
+}
+
+// HasModuleWithError is a transaction-safe version of HasModule
+func HasModuleWithError(db *gorm.DB, businessID uint, module ModuleType) (bool, error) {
+	var busMod BusinessModule
+	err := db.Where("business_id = ? AND module = ? AND is_active = ?", businessID, module, true).First(&busMod).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return false, nil
+		}
+		return false, err
+	}
+
+	if busMod.ExpiryDate != nil && time.Now().After(*busMod.ExpiryDate) {
+		return false, nil
+	}
+
+	return true, nil
 }

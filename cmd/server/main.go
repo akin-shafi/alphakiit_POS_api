@@ -74,16 +74,31 @@ func main() {
 	config.LoadEnv()
 
 	db := database.ConnectDB()
-	// if err := database.RunMigrations(db); err != nil {
-	// 	log.Fatalf("Failed to run migrations: %v", err)
-	// }
+	if err := database.RunMigrations(db); err != nil {
+		log.Fatalf("Failed to run migrations: %v", err)
+	}
 	// tutorial.SeedTutorials(db) // Seed tutorial content (after migrations)
 
 	// === Start Background Tasks ===
 	archiver.StartDataLifecycleManager(db)
 	report.StartReportScheduler(db)
 
-	app := fiber.New()
+	app := fiber.New(fiber.Config{
+		ErrorHandler: func(c *fiber.Ctx, err error) error {
+			// Status code defaults to 500
+			code := fiber.StatusInternalServerError
+
+			// Retrieve the custom status code if it's a *fiber.Error
+			if e, ok := err.(*fiber.Error); ok {
+				code = e.Code
+			}
+
+			// Return status code with error message in JSON
+			return c.Status(code).JSON(fiber.Map{
+				"error": err.Error(),
+			})
+		},
+	})
 
 	// === Global Rate Limiter ===
 	app.Use(limiter.New(limiter.Config{
@@ -130,6 +145,7 @@ func main() {
 	subscription.RegisterPublicRoutes(apiV1, db)
 	seed.RegisterPublicRoutes(apiV1, db)
 	advert.RegisterPublicAdvertRoutes(apiV1, db)
+	product.RegisterPublicProductRoutes(apiV1, db)
 
 	// Auth (Public part: login, verify-otp, password-reset)
 	auth.RegisterAuthRoutes(apiV1.Group("/auth"), db)

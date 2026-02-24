@@ -24,6 +24,16 @@ type TaxReportItem struct {
 
 // GenerateTaxReport generates a CSV report for VAT/FIRS filings
 func GenerateTaxReport(db *gorm.DB, businessID uint, startDate, endDate string) ([]byte, error) {
+	// 0. Fetch Business for VAT settings
+	var biz struct {
+		VATRate   float64
+		TaxNumber string
+	}
+	db.Table("businesses").Select("vat_rate, tax_number").Where("id = ?", businessID).Scan(&biz)
+	if biz.VATRate <= 0 {
+		biz.VATRate = 7.5 // Default fallback
+	}
+
 	// 1. Fetch sales within range
 	var sales []Sale
 	query := db.Where("business_id = ? AND status = ?", businessID, StatusCompleted)
@@ -51,15 +61,16 @@ func GenerateTaxReport(db *gorm.DB, businessID uint, startDate, endDate string) 
 
 		// If tax amount isn't explicitly stored, we might calculate it.
 		// Let's assume 7.5% VAT is included in Total for reporting purposes if not separated.
-		// VAT = Total - (Total / 1.075)
-		vatAmount := s.Total - (s.Total / 1.075)
+		// vatRate = 12.0 -> 1.12 divisor
+		divisor := 1 + (biz.VATRate / 100)
+		vatAmount := s.Total - (s.Total / divisor)
 		subtotal := s.Total - vatAmount
 
 		reportData = append(reportData, TaxReportItem{
 			Date:          s.CreatedAt.Format("2006-01-02 15:04:05"),
 			InvoiceNumber: fmt.Sprintf("INV-%d", s.ID),
-			Customer:      s.CustomerName, // Assuming this field exists or needs to be joined
-			TaxID:         "N/A",          // Placeholder for Customer Tax ID if we track it
+			Customer:      s.CustomerName,
+			TaxID:         biz.TaxNumber,
 			Subtotal:      subtotal,
 			VAT:           vatAmount,
 			Total:         s.Total,
@@ -73,7 +84,7 @@ func GenerateTaxReport(db *gorm.DB, businessID uint, startDate, endDate string) 
 	w := csv.NewWriter(b)
 
 	// Header
-	if err := w.Write([]string{"Date", "Invoice No", "Customer", "Tax ID", "Subtotal", "VAT (7.5%)", "Total", "Payment Method", "Status"}); err != nil {
+	if err := w.Write([]string{"Date", "Invoice No", "Customer", "Business Tax ID", "Subtotal", fmt.Sprintf("VAT (%.1f%%)", biz.VATRate), "Total", "Payment Method", "Status"}); err != nil {
 		return nil, err
 	}
 

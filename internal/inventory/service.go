@@ -9,72 +9,63 @@ import (
 	"gorm.io/gorm"
 )
 
-func AdjustStock(db *gorm.DB, productID, businessID uint, quantity int) error {
+func AdjustStock(tx *gorm.DB, productID, businessID uint, quantity int) error {
+	// 1. Get product tracking info and current stock in one go
+	var prodInfo struct {
+		TrackByRound bool
+		Stock        int
+	}
+	if err := tx.Table("products").Select("track_by_round, stock").Where("id = ? AND business_id = ?", productID, businessID).Scan(&prodInfo).Error; err != nil {
+		return fmt.Errorf("failed to fetch product info: %w", err)
+	}
+
+	// 2. If tracked by round, delegate and return
+	if prodInfo.TrackByRound {
+		return AdjustStockFromRound(tx, productID, businessID, float64(quantity))
+	}
+
+	// 3. Normal inventory adjustment
 	var inv Inventory
-	// Check if inventory record exists
-	err := db.Where("product_id = ? AND business_id = ?", productID, businessID).First(&inv).Error
+	err := tx.Where("product_id = ? AND business_id = ?", productID, businessID).First(&inv).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			// If inventory record doesn't exist, try to get initial stock from Product table
-			var prod struct {
-				Stock int
+			// Create missing inventory record from products.stock
+			inv = Inventory{
+				ProductID:    productID,
+				BusinessID:   businessID,
+				CurrentStock: prodInfo.Stock,
 			}
-			// Use a raw query or direct model to avoid circular imports if product package is used
-			if err := db.Table("products").Select("stock").Where("id = ? AND business_id = ?", productID, businessID).Scan(&prod).Error; err == nil {
-				inv = Inventory{
-					ProductID:    productID,
-					BusinessID:   businessID,
-					CurrentStock: prod.Stock,
-				}
-				// Create the inventory record with the product's initial stock
-				if err := db.Create(&inv).Error; err != nil {
-					return err
-				}
-			} else {
-				// Fallback to creating with 0 if product not found (unlikely)
-				inv = Inventory{ProductID: productID, BusinessID: businessID, CurrentStock: 0}
-				if err := db.Create(&inv).Error; err != nil {
-					return err
-				}
+			if err := tx.Create(&inv).Error; err != nil {
+				return fmt.Errorf("failed to initialize inventory record: %w", err)
 			}
 		} else {
-			return err
+			return fmt.Errorf("inventory lookup failed: %w", err)
 		}
 	}
 
-	// If inventory record exists but has 0 stock and hasn't been updated yet,
-	// it might have been created by a previous failed attempt/bug.
-	// We sync from Product table in this case too.
-	if inv.CurrentStock == 0 && inv.CreatedAt.Equal(inv.UpdatedAt) {
-		var prod struct {
-			Stock int
-		}
-		if err := db.Table("products").Select("stock").Where("id = ? AND business_id = ?", productID, businessID).Scan(&prod).Error; err == nil {
-			if prod.Stock > 0 {
-				inv.CurrentStock = prod.Stock
-				db.Save(&inv)
-			}
-		}
+	// 4. Stock Sync (Best effort for out-of-sync records)
+	if inv.CurrentStock == 0 && inv.CreatedAt.Equal(inv.UpdatedAt) && prodInfo.Stock > 0 {
+		inv.CurrentStock = prodInfo.Stock
 	}
 
-	// Check if deduction would result in negative stock
+	// 5. Final validation and updates
 	newStock := inv.CurrentStock + quantity
 	if newStock < 0 {
-		return fmt.Errorf("insufficient stock: available %d, requested %d", inv.CurrentStock, -quantity)
-	}
-
-	// Check if product is tracked by rounds (Bulk Stock Rounds)
-	var prod struct {
-		TrackByRound bool
-	}
-	if err := db.Table("products").Select("track_by_round").Where("id = ? AND business_id = ?", productID, businessID).Scan(&prod).Error; err == nil && prod.TrackByRound {
-		// quantity is negative for deduction, positive for restock/void
-		return AdjustStockFromRound(db, productID, businessID, float64(quantity))
+		return fmt.Errorf("available: %d, needed: %d", inv.CurrentStock, -quantity)
 	}
 
 	inv.CurrentStock = newStock
 	inv.LastRestocked = time.Now()
-	return db.Save(&inv).Error
+
+	if err := tx.Save(&inv).Error; err != nil {
+		return fmt.Errorf("failed to save inventory update: %w", err)
+	}
+
+	if err := tx.Table("products").Where("id = ? AND business_id = ?", productID, businessID).Update("stock", newStock).Error; err != nil {
+		return fmt.Errorf("failed to sync product stock: %w", err)
+	}
+
+	return nil
 }
 
 func AdjustStockFromRound(db *gorm.DB, productID, businessID uint, quantity float64) error {
