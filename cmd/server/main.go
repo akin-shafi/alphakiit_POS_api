@@ -190,7 +190,7 @@ func main() {
 	printing.RegisterRoutes(businessScoped, db)
 	recipe.RegisterRecipeRoutes(businessScoped, db)
 	tutorial.RegisterRoutes(businessScoped, db)
-	notification.RegisterNotificationRoutes(protected, db)
+	notification.RegisterNotificationRoutes(businessScoped, db)
 
 	// === Start server ===
 	port := config.AppPort()

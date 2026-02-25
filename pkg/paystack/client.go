@@ -1,6 +1,7 @@
 package paystack
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -33,7 +34,66 @@ type VerificationResponse struct {
 		Customer  struct {
 			Email string `json:"email"`
 		} `json:"customer"`
+		Authorization struct {
+			AuthorizationCode string `json:"authorization_code"`
+			Bin               string `json:"bin"`
+			Last4             string `json:"last4"`
+			ExpMonth          string `json:"exp_month"`
+			ExpYear           string `json:"exp_year"`
+			Channel           string `json:"channel"`
+			CardType          string `json:"card_type"`
+			Bank              string `json:"bank"`
+			CountryCode       string `json:"country_code"`
+			Brand             string `json:"brand"`
+			Reusable          bool   `json:"reusable"`
+			Signature         string `json:"signature"`
+			AccountName       string `json:"account_name"`
+		} `json:"authorization"`
 	} `json:"data"`
+}
+
+func (c *PaystackClient) ChargeAuthorization(email string, amount float64, authorizationCode string) (*VerificationResponse, error) {
+	if c.SecretKey == "" {
+		return nil, errors.New("PAYSTACK_SECRET_KEY not set")
+	}
+
+	url := fmt.Sprintf("%s/transaction/charge_authorization", c.BaseURL)
+	payload := map[string]interface{}{
+		"email":              email,
+		"amount":             fmt.Sprintf("%.0f", amount*100), // convert to kobo
+		"authorization_code": authorizationCode,
+	}
+
+	jsonPayload, _ := json.Marshal(payload)
+	req, err := http.NewRequest("POST", url, bytes.NewBuffer(jsonPayload))
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Set("Authorization", "Bearer "+c.SecretKey)
+	req.Header.Set("Content-Type", "application/json")
+
+	client := &http.Client{Timeout: 10 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	var result VerificationResponse
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return nil, err
+	}
+
+	if !result.Status {
+		return nil, errors.New(result.Message)
+	}
+
+	if result.Data.Status != "success" {
+		return nil, fmt.Errorf("charge failed: status is %s", result.Data.Status)
+	}
+
+	return &result, nil
 }
 
 func (c *PaystackClient) VerifyTransaction(reference string) (*VerificationResponse, error) {

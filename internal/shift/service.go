@@ -42,6 +42,16 @@ func (s *ShiftService) StartShift(businessID uint, userID uint, userName string,
 		return nil, err
 	}
 
+	// Real-time Alert for Owner on shift starting
+	go func() {
+		notifier := notification.GetDefaultService(s.db)
+		// Get business for currency
+		var businessObj struct{ Currency string }
+		s.db.Table("businesses").Select("currency").Where("id = ?", shift.BusinessID).Scan(&businessObj)
+
+		notifier.SendShiftOpenedAlert(shift.BusinessID, shift.UserName, shift.StartCash, businessObj.Currency)
+	}()
+
 	return shift, nil
 }
 

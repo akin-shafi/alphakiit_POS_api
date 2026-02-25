@@ -13,6 +13,7 @@ import (
 	"pos-fiber-app/internal/category"
 	"pos-fiber-app/internal/config"
 	"pos-fiber-app/internal/inventory"
+	"pos-fiber-app/internal/notification"
 	"pos-fiber-app/internal/otp"
 	"pos-fiber-app/internal/outlet"
 	"pos-fiber-app/internal/product"
@@ -69,6 +70,7 @@ func RunMigrations(db *gorm.DB) error {
 		&subscription.TrainingResource{},
 		&subscription.PayoutRequest{},
 		&tutorial.Tutorial{},
+		&notification.DeviceToken{},
 	)
 
 	if err != nil {

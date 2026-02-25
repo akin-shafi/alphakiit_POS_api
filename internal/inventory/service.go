@@ -4,6 +4,7 @@ package inventory
 import (
 	"errors"
 	"fmt"
+	"pos-fiber-app/internal/notification"
 	"time"
 
 	"gorm.io/gorm"
@@ -65,6 +66,16 @@ func AdjustStock(tx *gorm.DB, productID, businessID uint, quantity int) error {
 		return fmt.Errorf("failed to sync product stock: %w", err)
 	}
 
+	// 6. Check for Low Stock Alert
+	if newStock <= inv.LowStockAlert && quantity < 0 { // Alert only on deduction
+		go func() {
+			notifier := notification.GetDefaultService(tx)
+			var prodName string
+			tx.Table("products").Select("name").Where("id = ?", productID).Scan(&prodName)
+			notifier.SendLowStockAlert(businessID, prodName, newStock, inv.LowStockAlert)
+		}()
+	}
+
 	return nil
 }
 
@@ -78,10 +89,8 @@ func AdjustStockFromRound(db *gorm.DB, productID, businessID uint, quantity floa
 		if errors.Is(err, gorm.ErrRecordNotFound) && quantity < 0 {
 			return errors.New("no open stock round found for this product")
 		}
-		// If it's a restock (voiding) maybe we don't strictly need a round, but for now we follow the rule
-		if err != nil {
-			return err
-		}
+		// If it's a restock (voiding) or other error, return it unless we decide to ignore it for restocks
+		return err
 	}
 
 	newRemaining := round.RemainingVolume + quantity
@@ -90,8 +99,22 @@ func AdjustStockFromRound(db *gorm.DB, productID, businessID uint, quantity floa
 	}
 
 	round.RemainingVolume = newRemaining
-	// Auto-close if it reaches exactly 0? Maybe better to let the user close it manually as requested.
-	return db.Save(&round).Error
+
+	if err := db.Save(&round).Error; err != nil {
+		return err
+	}
+
+	// Check for Low Stock in Bulk Round (15% threshold as default)
+	if newRemaining <= (0.15*round.TotalVolume) && quantity < 0 {
+		go func() {
+			notifier := notification.GetDefaultService(db)
+			var prodName string
+			db.Table("products").Select("name").Where("id = ?", productID).Scan(&prodName)
+			notifier.SendLowStockAlert(businessID, prodName+" (Bulk)", int(newRemaining), int(0.15*round.TotalVolume))
+		}()
+	}
+
+	return nil
 }
 
 func StartNewRound(db *gorm.DB, businessID, productID uint, totalVolume float64) (*InventoryRound, error) {

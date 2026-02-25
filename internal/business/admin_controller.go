@@ -2,7 +2,6 @@ package business
 
 import (
 	"pos-fiber-app/internal/common"
-	"pos-fiber-app/internal/seed"
 	"strings"
 
 	"github.com/gofiber/fiber/v2"
@@ -70,8 +69,8 @@ func (ac *AdminBusinessController) CreateBusiness(c *fiber.Ctx) error {
 		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
 	}
 
-	// Optional: Seed
-	seed.SeedSampleData(ac.db, biz.ID, biz.Type)
+	// Optional: Seed (Moved to separate endpoint to avoid import cycle)
+	// seed.SeedSampleData(ac.db, biz.ID, biz.Type)
 
 	return c.Status(201).JSON(biz)
 }
@@ -123,6 +122,97 @@ func (ac *AdminBusinessController) DeleteBusiness(c *fiber.Ctx) error {
 	return c.SendStatus(204)
 }
 
+// ResetBusinessData wipes all sales, shifts, and audit logs for a business and restores stock
+func (ac *AdminBusinessController) ResetBusinessData(c *fiber.Ctx) error {
+	id, _ := c.ParamsInt("id")
+	businessID := uint(id)
+
+	// Verify business exists
+	var biz Business
+	if err := ac.db.First(&biz, businessID).Error; err != nil {
+		return c.Status(404).JSON(fiber.Map{"error": "Business not found"})
+	}
+
+	err := ac.db.Transaction(func(tx *gorm.DB) error {
+		// 1. Restock logic for COMPLETED sales
+		type ItemStock struct {
+			ProductID uint
+			Quantity  int
+		}
+		var items []ItemStock
+
+		// Get summing quantities of completed sales items to restore stock
+		if err := tx.Table("sale_items").
+			Select("sale_items.product_id, SUM(sale_items.quantity) as quantity").
+			Joins("JOIN sales ON sales.id = sale_items.sale_id").
+			Where("sales.business_id = ? AND sales.status = ? AND sales.deleted_at IS NULL", businessID, "COMPLETED").
+			Group("sale_items.product_id").
+			Scan(&items).Error; err != nil {
+			return err
+		}
+
+		// Restore stock levels
+		for _, item := range items {
+			// Update products table
+			if err := tx.Table("products").
+				Where("id = ? AND business_id = ?", item.ProductID, businessID).
+				UpdateColumn("stock", gorm.Expr("stock + ?", item.Quantity)).Error; err != nil {
+				return err
+			}
+
+			// Update inventories table
+			if err := tx.Table("inventories").
+				Where("product_id = ? AND business_id = ?", item.ProductID, businessID).
+				UpdateColumn("current_stock", gorm.Expr("current_stock + ?", item.Quantity)).Error; err != nil {
+				return err
+			}
+		}
+
+		// 2. Perform deletions (Wipe transaction data)
+
+		// Delete SaleActivityLog
+		if err := tx.Exec("DELETE FROM sale_activity_logs WHERE business_id = ?", businessID).Error; err != nil {
+			return err
+		}
+
+		// Delete SaleItems
+		if err := tx.Exec("DELETE FROM sale_items WHERE sale_id IN (SELECT id FROM sales WHERE business_id = ?)", businessID).Error; err != nil {
+			return err
+		}
+
+		// Delete SaleSummaries
+		if err := tx.Exec("DELETE FROM sale_summaries WHERE business_id = ?", businessID).Error; err != nil {
+			return err
+		}
+
+		// Delete Sales
+		if err := tx.Exec("DELETE FROM sales WHERE business_id = ?", businessID).Error; err != nil {
+			return err
+		}
+
+		// Delete ShiftReadings
+		if err := tx.Exec("DELETE FROM shift_readings WHERE shift_id IN (SELECT id FROM shifts WHERE business_id = ?)", businessID).Error; err != nil {
+			return err
+		}
+
+		// Delete Shifts
+		if err := tx.Exec("DELETE FROM shifts WHERE business_id = ?", businessID).Error; err != nil {
+			return err
+		}
+
+		return nil
+	})
+
+	if err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": "Failed to reset business data: " + err.Error()})
+	}
+
+	return c.JSON(fiber.Map{
+		"message":  "Business data reset successfully! All test sales cleared and stock restored.",
+		"business": biz.Name,
+	})
+}
+
 // RegisterAdminRoutes registers routes for admin business management
 func RegisterAdminRoutes(r fiber.Router, db *gorm.DB) {
 	ac := NewAdminBusinessController(db)
@@ -131,4 +221,5 @@ func RegisterAdminRoutes(r fiber.Router, db *gorm.DB) {
 	r.Post("/admin/businesses", ac.CreateBusiness)
 	r.Put("/admin/businesses/:id", ac.UpdateBusiness)
 	r.Delete("/admin/businesses/:id", ac.DeleteBusiness)
+	r.Post("/admin/businesses/:id/reset", ac.ResetBusinessData)
 }

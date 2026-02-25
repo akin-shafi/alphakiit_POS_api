@@ -2,6 +2,7 @@ package notification
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/gofiber/fiber/v2"
 	"gorm.io/gorm"
@@ -21,6 +22,46 @@ func RegisterNotificationRoutes(router fiber.Router, db *gorm.DB) {
 
 	group := router.Group("/notifications")
 	group.Post("/test-email", controller.TestEmail)
+	group.Post("/tokens", controller.RegisterToken)
+}
+
+func (c *NotificationController) RegisterToken(ctx *fiber.Ctx) error {
+	var req struct {
+		Token      string `json:"token" validate:"required"`
+		DeviceType string `json:"device_type"`
+	}
+
+	if err := ctx.BodyParser(&req); err != nil {
+		return ctx.Status(400).JSON(fiber.Map{"error": "invalid request body"})
+	}
+
+	userID := ctx.Locals("user_id").(uint)
+	businessID := ctx.Locals("current_business_id").(uint)
+
+	var deviceToken DeviceToken
+	err := c.service.db.Where("token = ?", req.Token).First(&deviceToken).Error
+	if err == nil {
+		// Update existing
+		deviceToken.UserID = userID
+		deviceToken.BusinessID = businessID
+		deviceToken.DeviceType = req.DeviceType
+		deviceToken.LastUsed = time.Now()
+		c.service.db.Save(&deviceToken)
+	} else {
+		// Create new
+		deviceToken = DeviceToken{
+			UserID:     userID,
+			BusinessID: businessID,
+			Token:      req.Token,
+			DeviceType: req.DeviceType,
+			LastUsed:   time.Now(),
+		}
+		if err := c.service.db.Create(&deviceToken).Error; err != nil {
+			return ctx.Status(500).JSON(fiber.Map{"error": "failed to register token"})
+		}
+	}
+
+	return ctx.JSON(fiber.Map{"success": true, "message": "token registered successfully"})
 }
 
 func (c *NotificationController) TestEmail(ctx *fiber.Ctx) error {

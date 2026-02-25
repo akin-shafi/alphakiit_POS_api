@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"os"
 	"pos-fiber-app/internal/common"
-	"pos-fiber-app/internal/seed"
 	"pos-fiber-app/internal/subscription"
 	"pos-fiber-app/internal/types"
 	"strings"
@@ -64,8 +63,8 @@ func CreateHandler(db *gorm.DB) fiber.Handler {
 			return fiber.ErrInternalServerError
 		}
 
-		// Trigger seeding using central seed service
-		seed.SeedSampleData(db, biz.ID, biz.Type)
+		// Trigger seeding using central seed service (Moved to avoid cycle)
+		// seed.SeedSampleData(db, biz.ID, biz.Type)
 
 		return c.Status(fiber.StatusCreated).JSON(biz)
 	}

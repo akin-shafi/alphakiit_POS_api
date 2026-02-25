@@ -161,6 +161,24 @@ type PayoutRequest struct {
 	UpdatedAt   time.Time    `json:"updated_at"`
 }
 
+type PaymentMethod struct {
+	ID                uint      `gorm:"primaryKey" json:"id"`
+	BusinessID        uint      `gorm:"index" json:"business_id"`
+	AuthorizationCode string    `gorm:"type:varchar(255);not null" json:"-"`
+	Email             string    `gorm:"type:varchar(255)" json:"email"`
+	CardCategory      string    `gorm:"type:varchar(50)" json:"card_category"`
+	CardType          string    `gorm:"type:varchar(50)" json:"card_type"`
+	Bank              string    `gorm:"type:varchar(100)" json:"bank"`
+	Last4             string    `gorm:"type:varchar(4)" json:"last4"`
+	ExpMonth          string    `gorm:"type:varchar(2)" json:"exp_month"`
+	ExpYear           string    `gorm:"type:varchar(4)" json:"exp_year"`
+	Signature         string    `gorm:"type:varchar(255);uniqueIndex" json:"signature"`
+	Brand             string    `gorm:"type:varchar(50)" json:"brand"`
+	IsDefault         bool      `gorm:"default:false" json:"is_default"`
+	CreatedAt         time.Time `json:"created_at"`
+	UpdatedAt         time.Time `json:"updated_at"`
+}
+
 func Migrate(db *gorm.DB) error {
 	return db.AutoMigrate(
 		&Subscription{},
@@ -171,5 +189,6 @@ func Migrate(db *gorm.DB) error {
 		&CommissionSetting{},
 		&TrainingResource{},
 		&PayoutRequest{},
+		&PaymentMethod{},
 	)
 }

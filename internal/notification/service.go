@@ -1,6 +1,7 @@
 package notification
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -71,6 +72,36 @@ func (n *NotificationService) SendShiftClosedReport(businessID uint, shiftID uin
 	if notes != "" {
 		message += fmt.Sprintf("\nNotes/Readings: %s", notes)
 	}
+	n.SendSecurityAlert(businessID, title, message)
+}
+
+// SendShiftOpenedAlert sends an alert when a shift is started
+func (n *NotificationService) SendShiftOpenedAlert(businessID uint, cashierName string, startCash float64, currency string) {
+	title := "New Shift Opened"
+	message := fmt.Sprintf(
+		"Cashier %s has started a new shift.\nOpening Cash: %s%s",
+		cashierName, currency, formatCurrency(startCash),
+	)
+	n.SendSecurityAlert(businessID, title, message)
+}
+
+// SendLowStockAlert sends an alert when an item reaches its threshold
+func (n *NotificationService) SendLowStockAlert(businessID uint, productName string, remaining int, threshold int) {
+	title := "Low Stock Alert"
+	message := fmt.Sprintf(
+		"Inventory Alert: '%s' is running low.\nCurrent Stock: %d (Threshold: %d)",
+		productName, remaining, threshold,
+	)
+	n.SendSecurityAlert(businessID, title, message)
+}
+
+// SendStockUpdateAlert sends an alert when stock is manually updated
+func (n *NotificationService) SendStockUpdateAlert(businessID uint, productName string, oldStock, newStock int, userName string) {
+	title := "Stock Level Updated"
+	message := fmt.Sprintf(
+		"Stock for '%s' was updated by %s.\nPrevious: %d | New: %d",
+		productName, userName, oldStock, newStock,
+	)
 	n.SendSecurityAlert(businessID, title, message)
 }
 
@@ -200,4 +231,65 @@ func (n *NotificationService) SendSecurityAlert(businessID uint, title, message 
 			fmt.Printf("WhatsApp Alert Failed (Status %d)\n", resp.StatusCode)
 		}
 	}()
+
+	// 4. Send via Push Notification (To all owner's registered devices)
+	go n.SendPushToOwner(businessID, title, message)
+}
+
+// SendPushToOwner fetches owner tokens and sends a push via FCM
+func (n *NotificationService) SendPushToOwner(businessID uint, title, message string) {
+	// 1. Find Owner User ID
+	var biz struct{ TenantID string }
+	if err := n.db.Table("businesses").Select("tenant_id").Where("id = ?", businessID).Scan(&biz).Error; err != nil {
+		return
+	}
+
+	var owner struct{ ID uint }
+	if err := n.db.Table("users").Select("id").Where("tenant_id = ? AND role = ?", biz.TenantID, "OWNER").First(&owner).Error; err != nil {
+		return
+	}
+
+	// 2. Get all tokens for this owner
+	var tokens []DeviceToken
+	n.db.Where("user_id = ?", owner.ID).Find(&tokens)
+
+	if len(tokens) == 0 {
+		return
+	}
+
+	// 3. Send via FCM (Using simple HTTP POST for now)
+	fcmKey := os.Getenv("FCM_SERVER_KEY") // Legacy key or use Service Account for v1
+	if fcmKey == "" {
+		fmt.Println("Push Alert Error: FCM_SERVER_KEY missing in .env")
+		return
+	}
+
+	for _, t := range tokens {
+		payload := map[string]interface{}{
+			"to": t.Token,
+			"notification": map[string]string{
+				"title": title,
+				"body":  message,
+				"sound": "default",
+			},
+			"data": map[string]string{
+				"business_id": fmt.Sprintf("%d", businessID),
+				"type":        "security_alert",
+			},
+		}
+
+		body, _ := json.Marshal(payload)
+		req, _ := http.NewRequest("POST", "https://fcm.googleapis.com/fcm/send", strings.NewReader(string(body)))
+		req.Header.Add("Authorization", "key="+fcmKey)
+		req.Header.Add("Content-Type", "application/json")
+
+		client := &http.Client{}
+		resp, err := client.Do(req)
+		if err == nil {
+			defer resp.Body.Close()
+			if resp.StatusCode == 200 {
+				fmt.Printf("Push Notification Sent to ID %d: %s\n", owner.ID, title)
+			}
+		}
+	}
 }

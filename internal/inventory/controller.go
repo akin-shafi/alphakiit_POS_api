@@ -1,6 +1,8 @@
 package inventory
 
 import (
+	"pos-fiber-app/internal/notification"
+
 	"github.com/gofiber/fiber/v2"
 	"gorm.io/gorm"
 )
@@ -31,6 +33,25 @@ func RestockHandler(db *gorm.DB) fiber.Handler {
 		}
 
 		inv, _ := GetStock(db, uint(productID), bizID)
+
+		// Real-time Alert for Owner on manual stock update
+		go func() {
+			notifier := notification.GetDefaultService(db)
+
+			// Get product name
+			var prodName string
+			db.Table("products").Select("name").Where("id = ?", productID).Scan(&prodName)
+
+			// Get user name
+			userName := "Manager" // Default
+			if val, ok := c.Locals("userName").(string); ok {
+				userName = val
+			}
+
+			oldStock := inv.CurrentStock - req.Quantity
+			notifier.SendStockUpdateAlert(bizID, prodName, oldStock, inv.CurrentStock, userName)
+		}()
+
 		return c.JSON(inv)
 	}
 }

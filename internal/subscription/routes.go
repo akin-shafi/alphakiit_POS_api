@@ -13,6 +13,9 @@ func RegisterRoutes(router fiber.Router, db *gorm.DB) {
 	router.Get("/status", sc.GetStatus)
 	router.Get("/promo/validate", sc.ValidatePromoCode)
 	router.Post("/subscribe", sc.Subscribe)
+	router.Get("/cards", sc.GetSavedCards)
+	router.Post("/charge-saved", sc.ChargeSavedCard)
+	router.Delete("/cards/:id", sc.DeleteSavedCard)
 }
 
 func RegisterReferralRoutes(router fiber.Router, db *gorm.DB) {

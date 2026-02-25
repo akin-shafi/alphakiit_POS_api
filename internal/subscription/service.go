@@ -119,7 +119,8 @@ func HandleCommission(db *gorm.DB, sub *Subscription) error {
 
 func GetSubscriptionStatus(db *gorm.DB, businessID uint) (*Subscription, error) {
 	var sub Subscription
-	err := db.Where("business_id = ? AND status IN ?", businessID, []SubscriptionStatus{StatusActive, StatusGracePeriod, StatusPendingPayment}).
+	// Get the latest active or grace period subscription
+	err := db.Where("business_id = ? AND status IN ?", businessID, []SubscriptionStatus{StatusActive, StatusGracePeriod}).
 		Order("end_date DESC").
 		First(&sub).Error
 
@@ -127,6 +128,19 @@ func GetSubscriptionStatus(db *gorm.DB, businessID uint) (*Subscription, error) 
 		return nil, nil
 	}
 	return &sub, err
+}
+
+// GetRemainingDays calculates the number of full days remaining until expiry
+func GetRemainingDays(expiry time.Time) int {
+	now := time.Now()
+	if now.After(expiry) {
+		return 0
+	}
+	days := int(expiry.Sub(now).Hours() / 24)
+	if days < 0 {
+		return 0
+	}
+	return days
 }
 
 func CreateSubscription(db *gorm.DB, businessID uint, planType PlanType, paymentMethod, ref string, amount float64) (*Subscription, error) {
@@ -143,13 +157,22 @@ func CreateSubscription(db *gorm.DB, businessID uint, planType PlanType, payment
 	}
 
 	now := time.Now()
-	endDate := now.AddDate(0, 0, plan.DurationDays)
+	var startDate = now
+	var endDate = now.AddDate(0, 0, plan.DurationDays)
+
+	// Check if there's an existing active subscription to extend
+	currentSub, _ := GetSubscriptionStatus(db, businessID)
+	if currentSub != nil && currentSub.EndDate.After(now) && currentSub.PlanType != PlanTrial {
+		// If renewing the same plan type or upgrading, we extend from the current end date
+		// Note: Trial is never extended, it's always replaced.
+		endDate = currentSub.EndDate.AddDate(0, 0, plan.DurationDays)
+	}
 
 	sub := &Subscription{
 		BusinessID:           businessID,
 		PlanType:             planType,
 		Status:               StatusActive,
-		StartDate:            now,
+		StartDate:            startDate,
 		EndDate:              endDate,
 		PaymentMethod:        paymentMethod,
 		TransactionReference: ref,
