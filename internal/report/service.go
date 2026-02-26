@@ -135,7 +135,69 @@ func (s *ReportService) TriggerWeeklyAuditReminders() error {
 
 func (s *ReportService) TriggerMonthlyFinancialReports() error {
 	fmt.Println("Triggering monthly financial reports...")
-	// For now, this could be a more comprehensive Profit & Loss summary sent via email.
-	// Since Monthly financial reporting is in "future expansion", let's just log it or provide a placeholder.
+
+	now := time.Now()
+	// Get start and end of previous month
+	lastMonth := now.AddDate(0, -1, 0)
+	startOfLastMonth := time.Date(lastMonth.Year(), lastMonth.Month(), 1, 0, 0, 0, 0, time.UTC)
+	endOfLastMonth := startOfLastMonth.AddDate(0, 1, 0).Add(-time.Second)
+
+	var businesses []struct {
+		ID       uint
+		Name     string
+		TenantID string
+		Currency string
+	}
+	s.db.Table("businesses").Where("reporting_enabled = ?", true).Select("id, name, tenant_id, currency").Find(&businesses)
+
+	monthName := lastMonth.Format("January 2006")
+
+	for _, b := range businesses {
+		// 1. Fetch Month Stats
+		monthlyStats, err := sale.GenerateSalesReport(s.db, b.ID, startOfLastMonth.Format("2006-01-02"), endOfLastMonth.Format("2006-01-02"), "")
+		if err != nil {
+			fmt.Printf("Error generating monthly stats for %s: %v\n", b.Name, err)
+			continue
+		}
+
+		if monthlyStats.TotalTransactions == 0 {
+			continue // Skip if no activity
+		}
+
+		// Fetch owner
+		var owner struct {
+			Email     string
+			FirstName string
+		}
+		s.db.Table("users").Where("tenant_id = ? AND role = ?", b.TenantID, "OWNER").Select("email, first_name").Scan(&owner)
+
+		if owner.Email == "" {
+			continue
+		}
+
+		// 2. Prepare Data
+		data := email.EmailData{
+			Name:             owner.FirstName,
+			BusinessName:     b.Name,
+			Currency:         b.Currency,
+			Month:            monthName,
+			TotalSales:       fmt.Sprintf("%.2f", monthlyStats.TotalSales),
+			TotalCost:        fmt.Sprintf("%.2f", monthlyStats.TotalCost),
+			Expenses:         fmt.Sprintf("%.2f", monthlyStats.TotalExpenses),
+			NetProfit:        fmt.Sprintf("%.2f", monthlyStats.NetProfit),
+			Profit:           fmt.Sprintf("%.2f", monthlyStats.TotalProfit), // Gross Profit
+			TransactionCount: monthlyStats.TotalTransactions,
+			Message:          fmt.Sprintf("%.2f", monthlyStats.AverageSale), // Using message as placeholder for Avg Sale
+		}
+
+		// 3. Send Email
+		emailCfg := email.LoadConfig()
+		sender := email.NewSender(emailCfg)
+		if err := sender.SendMonthlyReport(owner.Email, data); err != nil {
+			fmt.Printf("Error sending monthly report to %s: %v\n", owner.Email, err)
+		} else {
+			fmt.Printf("Successfully sent monthly report for %s to %s\n", b.Name, owner.Email)
+		}
+	}
 	return nil
 }

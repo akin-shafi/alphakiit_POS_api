@@ -1,0 +1,60 @@
+{{template "header" .}}
+<div style="padding: 30px; background-color: white;">
+    <p style="font-size: 16px; color: #374151;">Hello <strong>{{.Name}}</strong>,</p>
+    <p style="font-size: 16px; color: #374151; line-height: 1.6;">
+        Here is the monthly business strategy report for <strong>{{.BusinessName}}</strong> for the month of <strong>{{.Month}}</strong>.
+    </p>
+
+    <!-- Financial Performance Summary -->
+    <div
+        style="margin: 25px 0; padding: 25px; background-color: #f8fafc; border-radius: 16px; border: 1px solid #e2e8f0; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);">
+        <h3
+            style="margin: 0 0 20px 0; color: #1e293b; font-size: 20px; border-bottom: 2px solid #3b82f6; display: inline-block; padding-bottom: 4px;">
+            Financial Performance</h3>
+        
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px;">
+            <div style="padding: 15px; background-color: white; border-radius: 12px; border: 1px solid #f1f5f9;">
+                <p style="margin: 0; font-size: 12px; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em;">Total Revenue</p>
+                <p style="margin: 5px 0 0 0; font-size: 24px; font-weight: bold; color: #0f172a;">{{.Currency}} {{.TotalSales}}</p>
+            </div>
+            <div style="padding: 15px; background-color: white; border-radius: 12px; border: 1px solid #f1f5f9;">
+                <p style="margin: 0; font-size: 12px; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em;">Gross Profit</p>
+                <p style="margin: 5px 0 0 0; font-size: 24px; font-weight: bold; color: #10b981;">{{.Currency}} {{.Profit}}</p>
+            </div>
+        </div>
+
+        <table style="width: 100%; border-collapse: collapse; margin-top: 10px;">
+            <tr>
+                <td style="padding: 10px 0; color: #475569; font-size: 15px;">Cost of Goods Sold (COGS)</td>
+                <td style="padding: 10px 0; text-align: right; font-weight: 600; color: #1e293b;">{{.Currency}} {{.TotalCost}}</td>
+            </tr>
+            <tr>
+                <td style="padding: 10px 0; color: #475569; font-size: 15px;">Operating Expenses</td>
+                <td style="padding: 10px 0; text-align: right; font-weight: 600; color: #e11d48;">{{.Currency}} {{.Expenses}}</td>
+            </tr>
+            <tr style="border-top: 2px solid #e2e8f0;">
+                <td style="padding: 15px 0 0 0; color: #0f172a; font-size: 18px; font-weight: bold;">Net Monthly Profit</td>
+                <td style="padding: 15px 0 0 0; text-align: right; font-size: 22px; font-weight: 800; color: #2563eb;">{{.Currency}} {{.NetProfit}}</td>
+            </tr>
+        </table>
+    </div>
+
+    <!-- Efficiency Stats -->
+    <div style="margin: 25px 0; display: flex; gap: 20px;">
+        <div style="flex: 1; padding: 20px; background-color: #f0fdfa; border-radius: 12px; border: 1px solid #ccfbf1;">
+            <p style="margin: 0; font-size: 14px; color: #0d9488;">Avg. Transaction Value</p>
+            <p style="margin: 5px 0 0 0; font-size: 20px; font-weight: 700; color: #0f766e;">{{.Currency}} {{.Message}}</p> <!-- Reusing Message field for Avg. Sale -->
+        </div>
+        <div style="flex: 1; padding: 20px; background-color: #eff6ff; border-radius: 12px; border: 1px solid #dbeafe;">
+            <p style="margin: 0; font-size: 14px; color: #2563eb;">Total Transactions</p>
+            <p style="margin: 5px 0 0 0; font-size: 20px; font-weight: 700; color: #1e40af;">{{.TransactionCount}}</p>
+        </div>
+    </div>
+
+    <p style="font-size: 14px; color: #6b7280; margin-top: 40px; border-top: 1px solid #f3f4f6; padding-top: 25px; line-height: 1.5;">
+        This strategy report is designed to give you a high-level overview of your business growth. Use these insights to optimize your stock purchasing and reduce operating costs. 
+        <br><br>
+        Detailed analytics are available 24/7 on your <a href="{{.AppURL}}/dashboard/reports" style="color: #3b82f6; text-decoration: none; font-weight: 600;">Web Dashboard</a>.
+    </p>
+</div>
+{{template "footer" .}}

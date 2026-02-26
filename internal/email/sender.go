@@ -140,3 +140,23 @@ func (s *Sender) SendDailyReport(toEmail string, data EmailData) error {
 
 	return s.dialer.DialAndSend(m)
 }
+
+func (s *Sender) SendMonthlyReport(toEmail string, data EmailData) error {
+	data.AppName = s.config.AppName
+	data.AppURL = s.config.AppURL
+	data.SupportEmail = s.config.SupportEmail
+	data.Subject = "Monthly Business Strategy Report: " + data.BusinessName + " (" + data.Month + ")"
+
+	renderedSubject, htmlBody, err := RenderTemplate("monthly_report.html", data)
+	if err != nil {
+		return err
+	}
+
+	m := mail.NewMessage()
+	m.SetHeader("From", s.config.SMTPFrom)
+	m.SetHeader("To", toEmail)
+	m.SetHeader("Subject", renderedSubject)
+	m.SetBody("text/html", htmlBody)
+
+	return s.dialer.DialAndSend(m)
+}

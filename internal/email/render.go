@@ -35,6 +35,13 @@ type EmailData struct {
 	Date             string
 	LowStockItems    []EmailInventoryItem
 	SecurityAlerts   []string
+
+	// Monthly Report Data (Expanded)
+	Month     string
+	TotalCost string
+	Expenses  string
+	NetProfit string
+	Profit    string // Gross Profit
 }
 
 type EmailInventoryItem struct {
