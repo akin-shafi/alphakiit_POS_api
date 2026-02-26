@@ -113,10 +113,11 @@ var AvailablePlans = []SubscriptionPlan{
 }
 
 type ModulePlan struct {
-	Type        ModuleType `json:"type"`
-	Name        string     `json:"name"`
-	Price       float64    `json:"price"` // price per month
-	Description string     `json:"description"`
+	Type        ModuleType   `json:"type"`
+	Name        string       `json:"name"`
+	Price       float64      `json:"price"` // price per month
+	Description string       `json:"description"`
+	DependsOn   []ModuleType `json:"depends_on,omitempty"`
 }
 
 var AvailableModules = []ModulePlan{
@@ -149,6 +150,7 @@ var AvailableModules = []ModulePlan{
 		Name:        "Recipe & Cost Control (BOM)",
 		Price:       15000,
 		Description: "Ingredient-level cost tracking per item sold",
+		DependsOn:   []ModuleType{ModuleInventory},
 	},
 	{
 		Type:        ModuleWhatsApp,

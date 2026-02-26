@@ -11,6 +11,7 @@ func RegisterRoutes(router fiber.Router, db *gorm.DB) {
 	router.Get("/plans", sc.GetPlans)
 	router.Get("/pricing", sc.GetPricing)
 	router.Get("/status", sc.GetStatus)
+	router.Get("/history", sc.GetHistory)
 	router.Get("/promo/validate", sc.ValidatePromoCode)
 	router.Post("/subscribe", sc.Subscribe)
 	router.Get("/cards", sc.GetSavedCards)

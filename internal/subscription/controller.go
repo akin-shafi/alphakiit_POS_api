@@ -96,6 +96,24 @@ func (sc *SubscriptionController) GetStatus(c *fiber.Ctx) error {
 	})
 }
 
+// GetHistory returns the subscription payment history for the business
+// @Summary      Get business subscription history
+// @Description  Get all past and current subscription records for the authorized business
+// @Tags         Subscription
+// @Produce      json
+// @Success      200  {array}   Subscription
+// @Failure      500  {object}  map[string]string
+// @Security     BearerAuth
+// @Router       /subscription/history [get]
+func (sc *SubscriptionController) GetHistory(c *fiber.Ctx) error {
+	businessID := c.Locals("business_id").(uint)
+	var history []Subscription
+	if err := sc.db.Where("business_id = ?", businessID).Order("created_at DESC").Find(&history).Error; err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": "Could not fetch history"})
+	}
+	return c.JSON(history)
+}
+
 // Subscribe processes a new subscription payment via Paystack
 // @Summary      Subscribe to a plan
 // @Description  Verify a Paystack transaction and activate a subscription plan
@@ -131,6 +149,28 @@ func (sc *SubscriptionController) Subscribe(c *fiber.Ctx) error {
 		})
 	}
 
+	// 1.5 Validate Module Dependencies
+	allRequestedModules := req.Modules
+	if req.BundleCode != "" {
+		for _, b := range AvailableBundles {
+			if b.Code == req.BundleCode {
+				allRequestedModules = append(allRequestedModules, b.Modules...)
+				break
+			}
+		}
+	}
+
+	activeModMap := make(map[ModuleType]bool)
+	var activeModules []BusinessModule
+	sc.db.Where("business_id = ? AND is_active = ?", businessID, true).Find(&activeModules)
+	for _, am := range activeModules {
+		activeModMap[am.Module] = true
+	}
+
+	if err := validateModuleDependencies(allRequestedModules, activeModMap); err != nil {
+		return c.Status(400).JSON(fiber.Map{"error": err.Error()})
+	}
+
 	// 2. Calculate Total Amount
 	var selectedPlan *SubscriptionPlan
 	for _, p := range AvailablePlans {
@@ -144,39 +184,65 @@ func (sc *SubscriptionController) Subscribe(c *fiber.Ctx) error {
 		return c.Status(400).JSON(fiber.Map{"error": "Invalid plan type"})
 	}
 
-	// Fetch current status to check for mid-cycle additions
+	// Fetch current status to check for mid-cycle additions or upgrades
 	currentSub, _ := GetSubscriptionStatus(sc.db, businessID)
-	var activeModules []BusinessModule
-	sc.db.Where("business_id = ? AND is_active = ?", businessID, true).Find(&activeModules)
-	activeModMap := make(map[ModuleType]bool)
-	for _, am := range activeModules {
-		activeModMap[am.Module] = true
-	}
 
-	isMidCycleUpgrade := false
+	isMidCycleAddition := false
+	isUpgrade := false
 	remainingDays := 0
-	if currentSub != nil && currentSub.Status == StatusActive && currentSub.PlanType == req.PlanType {
-		// User is adding modules to an existing plan or renewing
-		// We need to decide if this is a "Renewal" (Full Price) or "Add-on" (Prorated)
-		// Usually, if the reference is for a full plan price, it's a renewal.
-		// For now, let's look at remaining days to support proration.
+	creditAmount := 0.0
+
+	if currentSub != nil && currentSub.Status == StatusActive {
 		remainingDays = GetRemainingDays(currentSub.EndDate)
-		if remainingDays > 5 { // Only prorate if there's more than 5 days left, otherwise just renew.
-			isMidCycleUpgrade = true
+
+		if currentSub.PlanType == req.PlanType {
+			// User is adding modules to an existing plan
+			if remainingDays > 2 { // Only treat as addition if there's more than 2 days left
+				isMidCycleAddition = true
+			}
+		} else {
+			// Check if this is an upgrade
+			var currentPlan *SubscriptionPlan
+			for _, p := range AvailablePlans {
+				if p.Type == currentSub.PlanType {
+					currentPlan = &p
+					break
+				}
+			}
+
+			if currentPlan != nil && currentPlan.Price < selectedPlan.Price && currentSub.PlanType != PlanTrial {
+				isUpgrade = true
+				// Calculate unused value of current plan
+				// We use the amount they actually paid for it
+				totalDays := currentPlan.DurationDays
+				if totalDays > 0 {
+					creditAmount = (float64(remainingDays) / float64(totalDays)) * currentSub.AmountPaid
+				}
+			}
 		}
 	}
 
 	// Calculate prices
 	totalPrice := 0.0
+	description := string(selectedPlan.Name)
 
-	// If it's mid-cycle upgrade, we don't charge for the plan again
-	if !isMidCycleUpgrade {
+	// If it's mid-cycle addition, we don't charge for the plan again
+	if !isMidCycleAddition {
 		totalPrice = selectedPlan.Price
+		if isUpgrade {
+			totalPrice -= creditAmount
+			if totalPrice < 0 {
+				totalPrice = 0
+			}
+			description = fmt.Sprintf("Upgrade to %s (Credit: ₦%.2f)", selectedPlan.Name, creditAmount)
+		}
+	} else {
+		description = "Add-on Modules"
 	}
 
 	// Duration multiplier based on 30-day month
 	monthMultiplier := float64(selectedPlan.DurationDays) / 30.0
-	if isMidCycleUpgrade {
+	if isMidCycleAddition {
 		// For mid-cycle upgrades, we use a different multiplier for NEW modules
 		monthMultiplier = float64(remainingDays) / 30.0
 	}
@@ -189,9 +255,10 @@ func (sc *SubscriptionController) Subscribe(c *fiber.Ctx) error {
 		for _, b := range AvailableBundles {
 			if b.Code == req.BundleCode {
 				activeBundle = &b
-				// Only charge for bundle if it's not already active or if we are renewing
-				if !isMidCycleUpgrade || !allModulesActive(activeModMap, b.Modules) {
+				// Only charge for bundle if it's not already active or if we are renewing/upgrading
+				if (!isMidCycleAddition && !isUpgrade) || !allModulesActive(activeModMap, b.Modules) {
 					totalPrice += b.Price * monthMultiplier
+					description += " + " + b.Name
 				}
 				for _, m := range b.Modules {
 					bundleModules[m] = true
@@ -207,13 +274,14 @@ func (sc *SubscriptionController) Subscribe(c *fiber.Ctx) error {
 			continue
 		}
 		// If mid-cycle and already active, don't charge again
-		if isMidCycleUpgrade && activeModMap[modType] {
+		if isMidCycleAddition && activeModMap[modType] {
 			continue
 		}
 
 		for _, m := range AvailableModules {
 			if m.Type == modType {
 				totalPrice += m.Price * monthMultiplier
+				description += " + " + m.Name
 				break
 			}
 		}
@@ -228,6 +296,7 @@ func (sc *SubscriptionController) Subscribe(c *fiber.Ctx) error {
 			if time.Now().Before(promo.ExpiryDate) && (promo.MaxUses == 0 || promo.UsedCount < promo.MaxUses) {
 				discountAmount := (promo.DiscountPercentage / 100) * totalPrice
 				totalPrice -= discountAmount
+				description += fmt.Sprintf(" (Promo: -%.0f%%)", promo.DiscountPercentage)
 			}
 		}
 	}
@@ -248,7 +317,7 @@ func (sc *SubscriptionController) Subscribe(c *fiber.Ctx) error {
 	// Usually NO. The user just wants the module for the REMAINING time.
 
 	var sub *Subscription
-	if isMidCycleUpgrade {
+	if isMidCycleAddition {
 		// Just create a record for the payment, but don't change the end date of the plan!
 		sub = &Subscription{
 			BusinessID:           businessID,
@@ -259,6 +328,24 @@ func (sc *SubscriptionController) Subscribe(c *fiber.Ctx) error {
 			PaymentMethod:        "PAYSTACK",
 			TransactionReference: req.Reference,
 			AmountPaid:           verification.Data.Amount / 100,
+			Description:          description,
+		}
+		sc.db.Create(sub)
+	} else if isUpgrade {
+		// New plan starts NOW and lasts for full duration
+		startDate := time.Now()
+		endDate := startDate.AddDate(0, 0, selectedPlan.DurationDays)
+
+		sub = &Subscription{
+			BusinessID:           businessID,
+			PlanType:             req.PlanType,
+			Status:               StatusActive,
+			StartDate:            startDate,
+			EndDate:              endDate,
+			PaymentMethod:        "PAYSTACK",
+			TransactionReference: req.Reference,
+			AmountPaid:           verification.Data.Amount / 100,
+			Description:          description,
 		}
 		sc.db.Create(sub)
 	} else {
@@ -273,6 +360,8 @@ func (sc *SubscriptionController) Subscribe(c *fiber.Ctx) error {
 		if err != nil {
 			return c.Status(500).JSON(fiber.Map{"error": err.Error()})
 		}
+		// Update description for CreateSubscription result
+		sc.db.Model(sub).Update("description", description)
 	}
 
 	// 4. Activate Modules
@@ -535,4 +624,42 @@ func allModulesActive(activeMap map[ModuleType]bool, modules []ModuleType) bool 
 		}
 	}
 	return true
+}
+
+func validateModuleDependencies(requested []ModuleType, active map[ModuleType]bool) error {
+	// Combine requested and active for validation
+	combined := make(map[ModuleType]bool)
+	for m := range active {
+		combined[m] = true
+	}
+	for _, m := range requested {
+		combined[m] = true
+	}
+
+	for _, m := range requested {
+		var plan *ModulePlan
+		for _, p := range AvailableModules {
+			if p.Type == m {
+				plan = &p
+				break
+			}
+		}
+
+		if plan != nil && len(plan.DependsOn) > 0 {
+			for _, dep := range plan.DependsOn {
+				if !combined[dep] {
+					// Find dependency name
+					depName := string(dep)
+					for _, p := range AvailableModules {
+						if p.Type == dep {
+							depName = p.Name
+							break
+						}
+					}
+					return fmt.Errorf("%s requires %s", plan.Name, depName)
+				}
+			}
+		}
+	}
+	return nil
 }
