@@ -103,3 +103,39 @@ func (s *ReportService) GenerateAndSendDailyReport(businessID uint) error {
 	sender := email.NewSender(emailCfg)
 	return sender.SendDailyReport(owner.Email, data)
 }
+
+func (s *ReportService) TriggerWeeklyAuditReminders() error {
+	// 1. Fetch businesses that need audit reminders
+	fmt.Println("Triggering weekly audit reminders...")
+	var businesses []struct {
+		ID       uint
+		Name     string
+		TenantID string
+	}
+	s.db.Table("businesses").Where("reporting_enabled = ?", true).Select("id, name, tenant_id").Find(&businesses)
+
+	for _, b := range businesses {
+		// Fetch owner
+		var owner struct {
+			Email     string
+			FirstName string
+		}
+		s.db.Table("users").Where("tenant_id = ? AND role = ?", b.TenantID, "OWNER").Select("email, first_name").Scan(&owner)
+
+		if owner.Email == "" {
+			continue
+		}
+
+		// Prepare data for audit reminder
+		s.notifier.SendSecurityAlert(b.ID, "Physical Stock Audit Reminder",
+			fmt.Sprintf("Hello %s, it's time for the weekly headcount of your stock at %s. Please perform a physical audit to ensure inventory accuracy.", owner.FirstName, b.Name))
+	}
+	return nil
+}
+
+func (s *ReportService) TriggerMonthlyFinancialReports() error {
+	fmt.Println("Triggering monthly financial reports...")
+	// For now, this could be a more comprehensive Profit & Loss summary sent via email.
+	// Since Monthly financial reporting is in "future expansion", let's just log it or provide a placeholder.
+	return nil
+}

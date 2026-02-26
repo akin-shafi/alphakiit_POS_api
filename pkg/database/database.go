@@ -12,6 +12,7 @@ import (
 	"pos-fiber-app/internal/business"
 	"pos-fiber-app/internal/category"
 	"pos-fiber-app/internal/config"
+	"pos-fiber-app/internal/expense"
 	"pos-fiber-app/internal/inventory"
 	"pos-fiber-app/internal/notification"
 	"pos-fiber-app/internal/otp"
@@ -57,6 +58,7 @@ func RunMigrations(db *gorm.DB) error {
 		&sale.SaleItem{},
 		&sale.SaleSummary{},        // NEW: Sale summaries for archiving
 		&sale.SaleActivityLog{},    // NEW: Sale activity logs
+		&expense.Expense{},         // NEW: Expense tracking
 		&shift.Shift{},             // NEW: Shift management
 		&shift.ShiftReading{},      // NEW: Shift readings for fuel/gas stations
 		&table.Table{},             // NEW: Table management

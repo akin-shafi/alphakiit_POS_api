@@ -10,6 +10,7 @@ func RegisterInventoryRoutes(r fiber.Router, db *gorm.DB) {
 	r.Post("/products/:product_id/stock", RestockHandler(db))
 	r.Get("/inventory/low-stock", LowStockHandler(db))
 	r.Get("/inventory", AllInventoryHandler(db))
+	r.Get("/inventory/summary", GetInventorySummaryHandler(db))
 
 	// Bulk Stock Rounds
 	r.Post("/inventory/rounds", StartRoundHandler(db))

@@ -49,10 +49,12 @@ func RegisterSaleRoutes(r fiber.Router, db *gorm.DB) {
 	tables.Post("/:sale_id/merge", MergeBillsHandler(db)) // /sales/:sale_id/merge
 
 	// NEW: Activity Logs
-	r.Get("/activities", GetActivitiesHandler(db))              // Global audit log
-	r.Get("/sales/:sale_id/history", GetSaleHistoryHandler(db)) // Get sale activity history
-	r.Get("/sales/reports/daily", DailyReportHandler(db))       // Daily summary
-	r.Get("/sales/reports/range", SalesReportHandler(db))       // Custom date range report
+	r.Get("/activities", GetActivitiesHandler(db))                   // Global audit log
+	r.Get("/sales/:sale_id/history", GetSaleHistoryHandler(db))      // Get sale activity history
+	r.Get("/sales/reports/daily", DailyReportHandler(db))            // Daily summary
+	r.Get("/sales/reports/range", SalesReportHandler(db))            // Custom date range report
+	r.Get("/sales/reports/products", ProductProfitReportHandler(db)) // Product-wise profit report
+	r.Get("/sales/reports/monthly", MonthlyReportHandler(db))        // Monthly for charting
 
 	// NEW: Enhanced Sale Actions with Reservations
 	tables.Post("/:sale_id/complete/reserve", CompleteSaleWithReservationHandler(db)) // /sales/:sale_id/complete/reserve

@@ -13,6 +13,7 @@ func RegisterPublicProductRoutes(r fiber.Router, db *gorm.DB) {
 func RegisterProductRoutes(r fiber.Router, db *gorm.DB) {
 	r.Get("/products", ListHandler(db))
 	r.Post("/products", CreateHandler(db))
+	r.Get("/products/low-stock", LowStockHandler(db))
 	r.Get("/products/:id", GetHandler(db))
 	r.Put("/products/:id", UpdateHandler(db))
 	r.Delete("/products/:id", DeleteHandler(db))

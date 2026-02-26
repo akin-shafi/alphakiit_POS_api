@@ -577,3 +577,49 @@ func GetActivitiesHandler(db *gorm.DB) fiber.Handler {
 		return c.JSON(logs)
 	}
 }
+
+// ProductProfitReportHandler godoc
+// @Summary Get product profit report
+// @Tags Sales
+// @Security BearerAuth
+// @Param from query string false "From date (YYYY-MM-DD)"
+// @Param to query string false "To date (YYYY-MM-DD)"
+// @Success 200 {array} ProductProfitStat
+// @Router /sales/reports/products [get]
+func ProductProfitReportHandler(db *gorm.DB) fiber.Handler {
+	return func(c *fiber.Ctx) error {
+		bizID := c.Locals("current_business_id").(uint)
+		from := c.Query("from")
+		to := c.Query("to")
+
+		report, err := GetProductProfitReport(db, bizID, from, to)
+		if err != nil {
+			return fiber.ErrInternalServerError
+		}
+
+		return c.JSON(report)
+	}
+}
+
+// MonthlyReportHandler godoc
+// @Summary Get monthly financial summary
+// @Description Retrieve revenue, cost, and profit grouped by month
+// @Tags Sale
+// @Security BearerAuth
+// @Produce json
+// @Param months query int false "Number of months to retrieve (default: 6)"
+// @Success 200 {array} MonthlySummaryItem
+// @Router /sales/reports/monthly [get]
+func MonthlyReportHandler(db *gorm.DB) fiber.Handler {
+	return func(c *fiber.Ctx) error {
+		bizID := c.Locals("current_business_id").(uint)
+		months := c.QueryInt("months", 6)
+
+		report, err := GetMonthlyFinancials(db, bizID, months)
+		if err != nil {
+			return fiber.ErrInternalServerError
+		}
+
+		return c.JSON(report)
+	}
+}

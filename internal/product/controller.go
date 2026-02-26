@@ -221,3 +221,17 @@ func DeleteHandler(db *gorm.DB) fiber.Handler {
 		return c.SendStatus(fiber.StatusNoContent)
 	}
 }
+
+// LowStockHandler returns products that are low on stock
+func LowStockHandler(db *gorm.DB) fiber.Handler {
+	return func(c *fiber.Ctx) error {
+		bizID := c.Locals("current_business_id").(uint)
+
+		products, err := ListLowStock(db, bizID)
+		if err != nil {
+			return fiber.ErrInternalServerError
+		}
+
+		return c.JSON(products)
+	}
+}

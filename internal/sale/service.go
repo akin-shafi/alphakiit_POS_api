@@ -7,6 +7,7 @@ import (
 	"log"
 	"time"
 
+	"pos-fiber-app/internal/expense"
 	"pos-fiber-app/internal/inventory"
 	"pos-fiber-app/internal/notification"
 	"pos-fiber-app/internal/product"
@@ -83,12 +84,16 @@ type SaleReceipt struct {
 type DailyReport struct {
 	Date                  string  `json:"date"`
 	TotalSales            float64 `json:"total_sales"`
+	TotalCost             float64 `json:"total_cost"`
+	TotalProfit           float64 `json:"total_profit"`
 	TotalTransactions     int     `json:"total_transactions"`
 	CashSales             float64 `json:"cash_sales"`
 	CardSales             float64 `json:"card_sales"`
 	TransferSales         float64 `json:"transfer_sales"`
 	ExternalTerminalSales float64 `json:"external_terminal_sales"`
 	CreditSales           float64 `json:"credit_sales"`
+	TotalExpenses         float64 `json:"total_expenses"`
+	NetProfit             float64 `json:"net_profit"`
 	AverageSale           float64 `json:"average_sale"`
 }
 
@@ -127,13 +132,16 @@ func CreateDraft(db *gorm.DB, businessID uint, tenantID string, outletID uint, c
 		}
 
 		itemTotal := float64(itemReq.Quantity) * prod.Price
+		itemProfit := (prod.Price - prod.Cost) * float64(itemReq.Quantity)
 		item := SaleItem{
 			SaleID:      sale.ID,
 			ProductID:   prod.ID,
 			ProductName: prod.Name,
 			Quantity:    itemReq.Quantity,
 			UnitPrice:   prod.Price,
+			CostPrice:   prod.Cost,
 			TotalPrice:  itemTotal,
+			Profit:      itemProfit,
 		}
 
 		if err := tx.Create(&item).Error; err != nil {
@@ -181,7 +189,9 @@ func AddItemToSale(db *gorm.DB, saleID, businessID uint, productID uint, qty int
 	db.FirstOrCreate(&item, "sale_id = ? AND product_id = ?", saleID, productID)
 	item.Quantity += qty
 	item.UnitPrice = prod.Price
+	item.CostPrice = prod.Cost
 	item.TotalPrice = float64(item.Quantity) * prod.Price
+	item.Profit = (item.UnitPrice - item.CostPrice) * float64(item.Quantity)
 	item.ProductName = prod.Name
 
 	if err := db.Save(&item).Error; err != nil {
@@ -329,6 +339,7 @@ func CreateSale(db *gorm.DB, businessID uint, tenantID string, outletID uint, ca
 
 		itemPrice := prod.Price
 		itemTotal := float64(itemReq.Quantity) * itemPrice
+		itemProfit := (itemPrice - prod.Cost) * float64(itemReq.Quantity)
 
 		saleItem := SaleItem{
 			SaleID:      sale.ID,
@@ -336,7 +347,9 @@ func CreateSale(db *gorm.DB, businessID uint, tenantID string, outletID uint, ca
 			ProductName: prod.Name,
 			Quantity:    itemReq.Quantity,
 			UnitPrice:   itemPrice,
+			CostPrice:   prod.Cost,
 			TotalPrice:  itemTotal,
+			Profit:      itemProfit,
 		}
 
 		if err := tx.Create(&saleItem).Error; err != nil {
@@ -639,7 +652,7 @@ func GenerateDailyReport(db *gorm.DB, businessID uint, dateStr string) (*DailyRe
 		Date: targetDate.Format("2006-01-02"),
 	}
 
-	// Query to get totals grouped by payment method
+	// 1. Get totals grouped by payment method (existing logic)
 	type result struct {
 		PaymentMethod     string
 		TotalSales        float64
@@ -658,6 +671,29 @@ func GenerateDailyReport(db *gorm.DB, businessID uint, dateStr string) (*DailyRe
 	if err != nil {
 		return nil, err
 	}
+
+	// 2. Get Overall Cost and Profit from Sale Items
+	var financialSummary struct {
+		TotalCost        float64
+		TotalItemsProfit float64
+	}
+	db.Table("sales").
+		Joins("JOIN sale_items ON sale_items.sale_id = sales.id").
+		Where("sales.business_id = ? AND sales.sale_date >= ? AND sales.sale_date < ? AND sales.status = ?",
+			businessID, startOfDay, endOfDay, StatusCompleted).
+		Select("SUM(sale_items.cost_price * sale_items.quantity) as total_cost, SUM(sale_items.profit) as total_items_profit").
+		Scan(&financialSummary)
+
+	// 3. Get Total Discounts applied at sale level
+	var totalDiscount float64
+	db.Model(&Sale{}).
+		Where("business_id = ? AND sale_date >= ? AND sale_date < ? AND status = ?",
+			businessID, startOfDay, endOfDay, StatusCompleted).
+		Select("SUM(discount)").
+		Scan(&totalDiscount)
+
+	// 4. Get Expenses for the day
+	totalExpenses, _ := expense.GetSummary(db, businessID, startOfDay, endOfDay)
 
 	// Aggregate results
 	var grandTotalSales float64
@@ -699,16 +735,18 @@ func GenerateDailyReport(db *gorm.DB, businessID uint, dateStr string) (*DailyRe
 			report.ExternalTerminalSales = r.TotalSales
 		case "CREDIT":
 			report.CreditSales = r.TotalSales
-		// Add more methods as needed (e.g., MOBILE_MONEY, etc.)
 		default:
-			// If unknown, add to cash or create Other category
-			report.CashSales += r.TotalSales // fallback
+			report.CashSales += r.TotalSales
 		}
 	}
 
 	// Fill final fields
 	report.TotalSales = grandTotalSales
 	report.TotalTransactions = grandTotalTransactions
+	report.TotalCost = financialSummary.TotalCost
+	report.TotalExpenses = totalExpenses
+	report.TotalProfit = financialSummary.TotalItemsProfit - totalDiscount
+	report.NetProfit = report.TotalProfit - totalExpenses
 
 	if grandTotalTransactions > 0 {
 		report.AverageSale = grandTotalSales / float64(grandTotalTransactions)
@@ -773,13 +811,36 @@ func GenerateSalesReport(db *gorm.DB, businessID uint, startDateStr, endDateStr,
 	var results []result
 
 	err = query.
-		Select("payment_method, SUM(total - discount) as total_sales, COUNT(*) as total_transactions").
+		Select("payment_method, SUM(total) as total_sales, COUNT(*) as total_transactions").
 		Group("payment_method").
 		Scan(&results).Error
 
 	if err != nil {
 		return nil, err
 	}
+
+	// 2. Get Overall Cost and Profit from Sale Items for this period
+	var financialSummary struct {
+		TotalCost        float64
+		TotalItemsProfit float64
+	}
+	db.Table("sales").
+		Joins("JOIN sale_items ON sale_items.sale_id = sales.id").
+		Where("sales.business_id = ? AND sales.sale_date >= ? AND sales.sale_date <= ? AND sales.status = ?",
+			businessID, startOfPeriod, endOfPeriod, StatusCompleted).
+		Select("SUM(sale_items.cost_price * sale_items.quantity) as total_cost, SUM(sale_items.profit) as total_items_profit").
+		Scan(&financialSummary)
+
+	// 3. Get Total Discounts for this period
+	var totalDiscount float64
+	db.Model(&Sale{}).
+		Where("business_id = ? AND sale_date >= ? AND sale_date <= ? AND status = ?",
+			businessID, startOfPeriod, endOfPeriod, StatusCompleted).
+		Select("SUM(discount)").
+		Scan(&totalDiscount)
+
+	// 4. Get Expenses for the period
+	totalExpenses, _ := expense.GetSummary(db, businessID, startOfPeriod, endOfPeriod)
 
 	// Initialize report
 	report := &SalesReport{
@@ -789,6 +850,8 @@ func GenerateSalesReport(db *gorm.DB, businessID uint, startDateStr, endDateStr,
 
 	var grandTotalSales float64
 	var grandTotalTransactions int
+	var grandTotalCost float64
+	var grandTotalProfit float64
 
 	// 1. Process Raw Data (Status COMPLETED)
 	for _, r := range results {
@@ -820,6 +883,10 @@ func GenerateSalesReport(db *gorm.DB, businessID uint, startDateStr, endDateStr,
 		}
 	}
 
+	grandTotalCost = financialSummary.TotalCost
+	grandTotalProfit = financialSummary.TotalItemsProfit - totalDiscount
+	grandTotalExpenses := totalExpenses
+
 	// 2. Process Archived Data (SaleSummary)
 	var archivedSummaries []SaleSummary
 	err = db.Where("business_id = ? AND date >= ? AND date <= ?", businessID, startOfPeriod, endOfPeriod).Find(&archivedSummaries).Error
@@ -827,6 +894,9 @@ func GenerateSalesReport(db *gorm.DB, businessID uint, startDateStr, endDateStr,
 		for _, s := range archivedSummaries {
 			grandTotalSales += s.TotalSales
 			grandTotalTransactions += s.TotalTransactions
+			grandTotalCost += s.TotalCost
+			grandTotalProfit += s.TotalProfit
+			grandTotalExpenses += s.TotalExpenses
 
 			report.CashSales += s.CashSales
 			report.CardSales += s.CardSales
@@ -839,6 +909,10 @@ func GenerateSalesReport(db *gorm.DB, businessID uint, startDateStr, endDateStr,
 
 	report.TotalSales = grandTotalSales
 	report.TotalTransactions = grandTotalTransactions
+	report.TotalCost = grandTotalCost
+	report.TotalExpenses = grandTotalExpenses
+	report.TotalProfit = grandTotalProfit
+	report.NetProfit = grandTotalProfit - grandTotalExpenses
 
 	if grandTotalTransactions > 0 {
 		report.AverageSale = grandTotalSales / float64(grandTotalTransactions)
@@ -873,12 +947,14 @@ func PerformCleanup(db *gorm.DB, businessID uint, retentionMonths int, businessN
 				SUM(total) as total_sales,
 				SUM(tax) as tax,
 				SUM(discount) as discount,
+				(SELECT SUM(cost_price * quantity) FROM sale_items WHERE sale_id IN (SELECT id FROM sales s2 WHERE s2.business_id = sales.business_id AND s2.sale_date >= ? AND s2.sale_date < ? AND s2.status = 'COMPLETED')) as total_cost,
+				((SELECT SUM(profit) FROM sale_items WHERE sale_id IN (SELECT id FROM sales s3 WHERE s3.business_id = sales.business_id AND s3.sale_date >= ? AND s3.sale_date < ? AND s3.status = 'COMPLETED')) - SUM(discount)) as total_profit,
 				SUM(CASE WHEN payment_method = 'CASH' THEN total ELSE 0 END) as cash_sales,
 				SUM(CASE WHEN payment_method = 'CARD' THEN total ELSE 0 END) as card_sales,
 				SUM(CASE WHEN payment_method = 'TRANSFER' THEN total ELSE 0 END) as transfer_sales,
 				SUM(CASE WHEN payment_method = 'EXTERNAL_TERMINAL' THEN total ELSE 0 END) as external_terminal_sales,
 				SUM(CASE WHEN payment_method = 'CREDIT' THEN total ELSE 0 END) as credit_sales
-			`).Scan(&summary).Error
+			`, d, d.AddDate(0, 0, 1), d, d.AddDate(0, 0, 1)).Scan(&summary).Error
 
 		if err == nil && summary.TotalTransactions > 0 {
 			summary.BusinessID = businessID
@@ -912,4 +988,112 @@ func PerformCleanup(db *gorm.DB, businessID uint, retentionMonths int, businessN
 			log.Printf("[CLEANUP SUCCESS] Purged old data for %s after summarizing\n", businessName)
 		}
 	}
+}
+
+type ProductProfitStat struct {
+	ProductID   uint    `json:"product_id"`
+	ProductName string  `json:"product_name"`
+	TotalQty    int     `json:"total_qty"`
+	Revenue     float64 `json:"revenue"`
+	Cost        float64 `json:"cost"`
+	Profit      float64 `json:"profit"`
+}
+
+func GetProductProfitReport(db *gorm.DB, businessID uint, from, to string) ([]ProductProfitStat, error) {
+	var results []ProductProfitStat
+
+	query := db.Table("sale_items").
+		Joins("JOIN sales ON sales.id = sale_items.sale_id").
+		Where("sales.business_id = ? AND sales.status = ?", businessID, StatusCompleted)
+
+	if from != "" {
+		if t, err := time.Parse("2006-01-02", from); err == nil {
+			query = query.Where("sales.sale_date >= ?", t)
+		}
+	}
+	if to != "" {
+		if t, err := time.Parse("2006-01-02", to); err == nil {
+			query = query.Where("sales.sale_date <= ?", t.AddDate(0, 0, 1))
+		}
+	}
+
+	err := query.Select(`
+		product_id, 
+		product_name, 
+		SUM(quantity) as total_qty, 
+		SUM(total_price) as revenue, 
+		SUM(cost_price * quantity) as cost, 
+		SUM(profit) as profit
+	`).
+		Group("product_id, product_name").
+		Order("profit DESC").
+		Scan(&results).Error
+
+	return results, err
+}
+
+// GetMonthlyFinancials retrieves monthly revenue, cost, and profit for charting
+func GetMonthlyFinancials(db *gorm.DB, businessID uint, months int) ([]MonthlySummaryItem, error) {
+	if months <= 0 {
+		months = 6 // Default to 6 months
+	}
+
+	startDate := time.Now().AddDate(0, -months, 0)
+	startDate = time.Date(startDate.Year(), startDate.Month(), 1, 0, 0, 0, 0, time.UTC)
+
+	var results []MonthlySummaryItem
+
+	// Combine live sales, archived summaries, and expenses
+	query := `
+        WITH combined_sales AS (
+            -- Live Sales
+            SELECT 
+                TO_CHAR(s.sale_date, 'YYYY-MM') as month_str,
+                s.total as revenue,
+                (SELECT SUM(si.cost_price * si.quantity) FROM sale_items si WHERE si.sale_id = s.id) as cost,
+                (SELECT SUM(si.profit) FROM sale_items si WHERE si.sale_id = s.id) - s.discount as sale_profit
+            FROM sales s
+            WHERE s.business_id = ? AND s.status = 'COMPLETED' AND s.sale_date >= ?
+
+            UNION ALL
+
+            -- Archived Summaries
+            SELECT 
+                TO_CHAR(date, 'YYYY-MM') as month_str,
+                total_sales as revenue,
+                total_cost as cost,
+                total_profit as sale_profit
+            FROM sale_summaries
+            WHERE business_id = ? AND date >= ?
+        ),
+        monthly_expenses AS (
+            SELECT 
+                TO_CHAR(date, 'YYYY-MM') as month_str,
+                SUM(amount) as total_expense
+            FROM expenses
+            WHERE business_id = ? AND date >= ? AND deleted_at IS NULL
+            GROUP BY month_str
+        ),
+        aggregated_sales AS (
+            SELECT 
+                month_str,
+                SUM(revenue) as revenue,
+                SUM(cost) as cost,
+                SUM(sale_profit) as gross_profit
+            FROM combined_sales
+            GROUP BY month_str
+        )
+        SELECT 
+            s.month_str as month,
+            s.revenue,
+            s.cost,
+            COALESCE(e.total_expense, 0) as expenses,
+            (s.gross_profit - COALESCE(e.total_expense, 0)) as profit
+        FROM aggregated_sales s
+        LEFT JOIN monthly_expenses e ON s.month_str = e.month_str
+        ORDER BY s.month_str ASC
+    `
+
+	err := db.Raw(query, businessID, startDate, businessID, startDate, businessID, startDate).Scan(&results).Error
+	return results, err
 }

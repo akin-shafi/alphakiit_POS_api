@@ -197,3 +197,21 @@ func GetAllActiveRoundsHandler(db *gorm.DB) fiber.Handler {
 		return c.JSON(rounds)
 	}
 }
+
+// GetInventorySummaryHandler godoc
+// @Summary Get inventory summary (total worth, qty, profit)
+// @Tags Inventory
+// @Security BearerAuth
+// @Produce json
+// @Success 200 {object} InventorySummary
+// @Router /inventory/summary [get]
+func GetInventorySummaryHandler(db *gorm.DB) fiber.Handler {
+	return func(c *fiber.Ctx) error {
+		bizID := c.Locals("current_business_id").(uint)
+		summary, err := GetInventorySummary(db, bizID)
+		if err != nil {
+			return fiber.ErrInternalServerError
+		}
+		return c.JSON(summary)
+	}
+}

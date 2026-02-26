@@ -178,6 +178,19 @@ func Delete(db *gorm.DB, id, businessID uint) error {
 	return db.Save(product).Error
 }
 
+// ListLowStock returns products where stock is below min_stock
+func ListLowStock(db *gorm.DB, businessID uint) ([]Product, error) {
+	var products []Product
+
+	err := db.Table("products").
+		Select("products.id, products.business_id, products.category_id, products.name, products.sku, products.description, products.price, products.cost, products.image_url, products.min_stock, products.barcode, products.active, COALESCE(inventories.current_stock, products.stock) as stock").
+		Joins("LEFT JOIN inventories ON inventories.product_id = products.id AND inventories.business_id = products.business_id").
+		Where("products.business_id = ? AND products.active = ? AND COALESCE(inventories.current_stock, products.stock) <= products.min_stock", businessID, true).
+		Find(&products).Error
+
+	return products, err
+}
+
 // Optional: HardDelete if needed (use cautiously)
 // func HardDelete(db *gorm.DB, id, businessID uint) error {
 //     return db.Where("id = ? AND business_id = ?", id, businessID).Delete(&Product{}).Error

@@ -222,3 +222,35 @@ func GetEffectiveStock(db *gorm.DB, productID, businessID uint) (int, error) {
 
 	return 0, err
 }
+
+type InventorySummary struct {
+	TotalItems         int64   `json:"total_items"`
+	TotalStockQuantity int64   `json:"total_stock_quantity"`
+	TotalPurchaseCost  float64 `json:"total_purchase_cost"`
+	TotalSellingValue  float64 `json:"total_selling_value"`
+	PotentialProfit    float64 `json:"potential_profit"`
+}
+
+func GetInventorySummary(db *gorm.DB, businessID uint) (*InventorySummary, error) {
+	var summary InventorySummary
+
+	// Join products and inventory to calculate totals
+	err := db.Table("products").
+		Joins("JOIN inventories ON inventories.product_id = products.id").
+		Where("products.business_id = ? AND products.active = ?", businessID, true).
+		Select(`
+			COUNT(products.id) as total_items, 
+			SUM(inventories.current_stock) as total_stock_quantity, 
+			SUM(inventories.current_stock * products.cost) as total_purchase_cost, 
+			SUM(inventories.current_stock * products.price) as total_selling_value
+		`).
+		Scan(&summary).Error
+
+	if err != nil {
+		return nil, err
+	}
+
+	summary.PotentialProfit = summary.TotalSellingValue - summary.TotalPurchaseCost
+
+	return &summary, nil
+}

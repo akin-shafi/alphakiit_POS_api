@@ -67,7 +67,9 @@ type SaleItem struct {
 	ProductName       string     `json:"product_name"` // snapshot
 	Quantity          int        `json:"quantity"`
 	UnitPrice         float64    `gorm:"type:decimal(12,2)" json:"unit_price"` // snapshot
+	CostPrice         float64    `gorm:"type:decimal(12,2)" json:"cost_price"` // snapshot at time of sale
 	TotalPrice        float64    `gorm:"type:decimal(12,2)" json:"total_price"`
+	Profit            float64    `gorm:"type:decimal(12,2)" json:"profit"`
 	PreparationStatus PrepStatus `gorm:"type:varchar(20);default:'PENDING'" json:"preparation_status"`
 }
 
@@ -75,6 +77,8 @@ type SalesReport struct {
 	FromDate                     string  `json:"from_date"`
 	ToDate                       string  `json:"to_date"`
 	TotalSales                   float64 `json:"total_sales"`
+	TotalCost                    float64 `json:"total_cost"`
+	TotalProfit                  float64 `json:"total_profit"`
 	TotalTransactions            int     `json:"total_transactions"`
 	CashSales                    float64 `json:"cash_sales"`
 	CashTransactions             int     `json:"cash_transactions"`
@@ -90,6 +94,8 @@ type SalesReport struct {
 	CreditTransactions           int     `json:"credit_transactions"`
 	OtherSales                   float64 `json:"other_sales"`
 	OtherTransactions            int     `json:"other_transactions"`
+	TotalExpenses                float64 `json:"total_expenses"`
+	NetProfit                    float64 `json:"net_profit"`
 	AverageSale                  float64 `json:"average_sale"`
 }
 
@@ -99,14 +105,25 @@ type SaleSummary struct {
 	BusinessID            uint      `gorm:"index;uniqueIndex:idx_biz_date" json:"business_id"`
 	Date                  time.Time `gorm:"uniqueIndex:idx_biz_date" json:"date"`
 	TotalSales            float64   `gorm:"type:decimal(12,2)" json:"total_sales"`
+	TotalCost             float64   `gorm:"type:decimal(12,2)" json:"total_cost"`
+	TotalProfit           float64   `gorm:"type:decimal(12,2)" json:"total_profit"`
 	TotalTransactions     int       `json:"total_transactions"`
 	CashSales             float64   `gorm:"type:decimal(12,2)" json:"cash_sales"`
 	CardSales             float64   `gorm:"type:decimal(12,2)" json:"card_sales"`
 	TransferSales         float64   `gorm:"type:decimal(12,2)" json:"transfer_sales"`
 	ExternalTerminalSales float64   `gorm:"type:decimal(12,2)" json:"external_terminal_sales"`
 	CreditSales           float64   `gorm:"type:decimal(12,2)" json:"credit_sales"`
+	TotalExpenses         float64   `gorm:"type:decimal(12,2)" json:"total_expenses"`
 	Tax                   float64   `gorm:"type:decimal(12,2)" json:"tax"`
 	Discount              float64   `gorm:"type:decimal(12,2)" json:"discount"`
 	CreatedAt             time.Time `json:"created_at"`
 	UpdatedAt             time.Time `json:"updated_at"`
+}
+
+type MonthlySummaryItem struct {
+	Month    string  `json:"month"` // e.g., "2024-01"
+	Revenue  float64 `json:"revenue"`
+	Cost     float64 `json:"cost"`
+	Expenses float64 `json:"expenses"`
+	Profit   float64 `json:"profit"` // This will be Net Profit
 }

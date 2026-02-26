@@ -20,6 +20,7 @@ import (
 	"pos-fiber-app/internal/business"
 	"pos-fiber-app/internal/category"
 	"pos-fiber-app/internal/config"
+	"pos-fiber-app/internal/expense"
 	"pos-fiber-app/internal/inventory"
 	"pos-fiber-app/internal/middleware"
 	"pos-fiber-app/internal/notification"
@@ -81,7 +82,7 @@ func main() {
 
 	// === Start Background Tasks ===
 	archiver.StartDataLifecycleManager(db)
-	report.StartReportScheduler(db)
+	// report.StartReportScheduler(db) // DEPRECATED: Now handled by external scheduler service via API
 
 	app := fiber.New(fiber.Config{
 		ErrorHandler: func(c *fiber.Ctx, err error) error {
@@ -138,6 +139,14 @@ func main() {
 	// === Routes ===
 	apiV1 := app.Group("/api/v1")
 
+	// Internal Trigger Endpoints (for external scheduler)
+	reportService := report.NewReportService(db)
+	reportCtrl := report.NewInternalReportController(db, reportService)
+	internal := apiV1.Group("/internal", reportCtrl.AuthMiddleware)
+	internal.Post("/cron/daily-report", reportCtrl.DailyReportHandler)
+	internal.Post("/cron/weekly-audit-reminder", reportCtrl.WeeklyAuditHandler)
+	internal.Post("/cron/monthly-report-reminder", reportCtrl.MonthlyReportHandler)
+
 	// 1. PUBLIC ROUTES (No Auth Required)
 	// --------------------------------------------------
 	business.RegisterPublicBusinessRoutes(apiV1, db)
@@ -178,6 +187,7 @@ func main() {
 	product.RegisterProductRoutes(businessScoped, db)
 	inventory.RegisterInventoryRoutes(businessScoped, db)
 	sale.RegisterSaleRoutes(businessScoped, db)
+	expense.RegisterRoutes(businessScoped, db)
 	seed.RegisterRoutes(businessScoped, db)
 
 	// Subscriptions & Shift/Table
