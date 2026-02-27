@@ -23,11 +23,12 @@ type UpdateBusinessRequest struct {
 	City     string       `json:"city,omitempty"`
 	Currency *Currency    `json:"currency,omitempty" validate:"omitempty,oneof=NGN USD GBP EUR"`
 	// Data Management
-	DataRetentionMonths *int   `json:"data_retention_months,omitempty"`
-	AutoArchiveEnabled  *bool  `json:"auto_archive_enabled,omitempty"`
-	ArchiveFrequency    string `json:"archive_frequency,omitempty"`
+	DataRetentionMonths    *int   `json:"data_retention_months,omitempty"`
+	AutoArchiveEnabled     *bool  `json:"auto_archive_enabled,omitempty"`
+	ArchiveFrequency       string `json:"archive_frequency,omitempty"`
 	WhatsAppEnabled        *bool  `json:"whatsapp_enabled,omitempty"`
 	WhatsAppNumber         string `json:"whatsapp_number,omitempty"`
 	TableManagementEnabled *bool  `json:"table_management_enabled,omitempty"`
 	SaveToDraftEnabled     *bool  `json:"save_to_draft_enabled,omitempty"`
+	Slug                   string `json:"slug,omitempty" validate:"omitempty,min=3,max=50"`
 }

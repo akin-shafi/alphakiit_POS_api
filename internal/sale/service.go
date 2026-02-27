@@ -7,6 +7,7 @@ import (
 	"log"
 	"time"
 
+	"pos-fiber-app/internal/common"
 	"pos-fiber-app/internal/expense"
 	"pos-fiber-app/internal/inventory"
 	"pos-fiber-app/internal/notification"
@@ -95,6 +96,12 @@ type DailyReport struct {
 	TotalExpenses         float64 `json:"total_expenses"`
 	NetProfit             float64 `json:"net_profit"`
 	AverageSale           float64 `json:"average_sale"`
+	// Bulk Inventory Metrics (LPG)
+	OpeningStock   float64 `json:"opening_stock,omitempty"`
+	ClosingStock   float64 `json:"closing_stock,omitempty"`
+	StockPurchased float64 `json:"stock_purchased,omitempty"`
+	StockSold      float64 `json:"stock_sold,omitempty"`
+	StockVariance  float64 `json:"stock_variance,omitempty"` // Surplus/Shortage
 }
 
 // CreateDraft starts a new sale with optional items and table info
@@ -548,7 +555,7 @@ func RemoveItemFromSale(db *gorm.DB, saleID, itemID, businessID uint) (*SaleResu
 
 // ListHeldSales returns all held sales for the business (optionally filtered by cashier)
 func ListHeldSales(db *gorm.DB, businessID, cashierID uint) ([]Sale, error) {
-	var heldSales []Sale
+	heldSales := []Sale{}
 
 	query := db.Where("business_id = ? AND status = ?", businessID, StatusHeld)
 
@@ -564,7 +571,7 @@ func ListHeldSales(db *gorm.DB, businessID, cashierID uint) ([]Sale, error) {
 
 // ListSales, GetSaleDetails, GenerateDailyReport implementations follow similar patterns...
 func ListSales(db *gorm.DB, businessID uint, filters SaleFilters) ([]Sale, error) {
-	var sales []Sale
+	sales := []Sale{}
 	query := db.Where("business_id = ?", businessID)
 
 	if filters.Status != "" {
@@ -754,6 +761,59 @@ func GenerateDailyReport(db *gorm.DB, businessID uint, dateStr string) (*DailyRe
 		report.AverageSale = 0
 	}
 
+	// 5. LPG/Bulk Inventory specific metrics
+	// We check if there's any product tracked by round or if it's an LPG station
+	var bizType common.BusinessType
+	db.Table("businesses").Select("type").Where("id = ?", businessID).Scan(&bizType)
+
+	if bizType == common.TypeLPGStation {
+		// Get all shifts finished today
+		var shiftIDs []uint
+		db.Table("shifts").Where("business_id = ? AND start_time >= ? AND start_time < ?", businessID, startOfDay, endOfDay).Pluck("id", &shiftIDs)
+
+		if len(shiftIDs) > 0 {
+			var readings []struct {
+				OpeningValue float64
+				ClosingValue float64
+				ProductID    uint
+				ShiftID      uint
+			}
+			db.Table("shift_readings").Where("shift_id IN ?", shiftIDs).Order("shift_id ASC").Find(&readings)
+
+			if len(readings) > 0 {
+				// Use the first shift's opening and last shift's closing for simplicity
+				// In a real scenario, we might group by product
+				report.OpeningStock = readings[0].OpeningValue
+				report.ClosingStock = readings[len(readings)-1].ClosingValue
+			}
+		}
+
+		// Calculate Stock Purchased (Rounds started today)
+		var purchaseVol float64
+		db.Table("inventory_rounds").
+			Where("business_id = ? AND start_date >= ? AND start_date < ?", businessID, startOfDay, endOfDay).
+			Select("SUM(total_volume)").Scan(&purchaseVol)
+		report.StockPurchased = purchaseVol
+
+		// Calculate Stock Sold (from transactions)
+		// We sum quantities from SaleItems where the product is TrackByRound
+		var soldQty float64
+		db.Table("sale_items").
+			Joins("JOIN sales ON sales.id = sale_items.sale_id").
+			Joins("JOIN products ON products.id = sale_items.product_id").
+			Where("sales.business_id = ? AND sales.sale_date >= ? AND sales.sale_date < ? AND sales.status = ? AND products.track_by_round = ?",
+				businessID, startOfDay, endOfDay, StatusCompleted, true).
+			Select("SUM(sale_items.quantity)").Scan(&soldQty)
+
+		// Convert from system units (10g) to kg
+		report.StockSold = soldQty / 100.0
+
+		// Variance = (Opening + Purchase) - Closing - Sold
+		// A positive variance means more stock was lost than recorded in sales (shortage)
+		// A negative variance means more stock is present than expected (surplus)
+		report.StockVariance = (report.OpeningStock + report.StockPurchased) - report.ClosingStock - report.StockSold
+	}
+
 	return report, nil
 }
 
@@ -912,10 +972,53 @@ func GenerateSalesReport(db *gorm.DB, businessID uint, startDateStr, endDateStr,
 	report.TotalCost = grandTotalCost
 	report.TotalExpenses = grandTotalExpenses
 	report.TotalProfit = grandTotalProfit
+	report.TotalProfit = grandTotalProfit
 	report.NetProfit = grandTotalProfit - grandTotalExpenses
 
 	if grandTotalTransactions > 0 {
 		report.AverageSale = grandTotalSales / float64(grandTotalTransactions)
+	}
+
+	// 3. LPG/Bulk Inventory specific metrics for Range
+	var bizType common.BusinessType
+	db.Table("businesses").Select("type").Where("id = ?", businessID).Scan(&bizType)
+
+	if bizType == common.TypeLPGStation {
+		// Get all shifts started in range
+		var shiftIDs []uint
+		db.Table("shifts").Where("business_id = ? AND start_time >= ? AND start_time <= ?", businessID, startOfPeriod, endOfPeriod).Order("start_time ASC").Pluck("id", &shiftIDs)
+
+		if len(shiftIDs) > 0 {
+			var readings []struct {
+				OpeningValue float64
+				ClosingValue float64
+			}
+			db.Table("shift_readings").Where("shift_id IN ?", shiftIDs).Order("shift_id ASC").Find(&readings)
+
+			if len(readings) > 0 {
+				report.OpeningStock = readings[0].OpeningValue
+				report.ClosingStock = readings[len(readings)-1].ClosingValue
+			}
+		}
+
+		// Calculate Stock Purchased (Rounds in range)
+		var purchaseVol float64
+		db.Table("inventory_rounds").
+			Where("business_id = ? AND start_date >= ? AND start_date <= ?", businessID, startOfPeriod, endOfPeriod).
+			Select("SUM(total_volume)").Scan(&purchaseVol)
+		report.StockPurchased = purchaseVol
+
+		// Calculate Stock Sold (from transactions in range)
+		var soldQty float64
+		db.Table("sale_items").
+			Joins("JOIN sales ON sales.id = sale_items.sale_id").
+			Joins("JOIN products ON products.id = sale_items.product_id").
+			Where("sales.business_id = ? AND sales.sale_date >= ? AND sales.sale_date <= ? AND sales.status = ? AND products.track_by_round = ?",
+				businessID, startOfPeriod, endOfPeriod, StatusCompleted, true).
+			Select("SUM(sale_items.quantity)").Scan(&soldQty)
+
+		report.StockSold = soldQty / 100.0
+		report.StockVariance = (report.OpeningStock + report.StockPurchased) - report.ClosingStock - report.StockSold
 	}
 
 	return report, nil
@@ -1000,7 +1103,7 @@ type ProductProfitStat struct {
 }
 
 func GetProductProfitReport(db *gorm.DB, businessID uint, from, to string) ([]ProductProfitStat, error) {
-	var results []ProductProfitStat
+	results := []ProductProfitStat{}
 
 	query := db.Table("sale_items").
 		Joins("JOIN sales ON sales.id = sale_items.sale_id").
@@ -1041,7 +1144,7 @@ func GetMonthlyFinancials(db *gorm.DB, businessID uint, months int) ([]MonthlySu
 	startDate := time.Now().AddDate(0, -months, 0)
 	startDate = time.Date(startDate.Year(), startDate.Month(), 1, 0, 0, 0, 0, time.UTC)
 
-	var results []MonthlySummaryItem
+	results := []MonthlySummaryItem{}
 
 	// Combine live sales, archived summaries, and expenses
 	query := `

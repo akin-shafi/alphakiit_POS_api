@@ -19,42 +19,45 @@ func RegisterManagementRoutes(r fiber.Router, db *gorm.DB) {
 
 // RegisterSaleRoutes registers all sales-related endpoints under the business-scoped group
 func RegisterSaleRoutes(r fiber.Router, db *gorm.DB) {
-	// 1. Un-guarded Sales Routes (Basic access for all subscriptions)
-	r.Post("/sales", CreateSaleHandler(db))                     // One-shot sale
-	r.Post("/sales/:sale_id/complete", CompleteSaleHandler(db)) // Finalize basic sale
-	r.Post("/sales/:sale_id/void", VoidSaleHandler(db))         // Void basic sale
-	r.Get("/sales", ListSalesHandler(db))                       // List with filters
-	r.Get("/sales/:sale_id", GetSaleHandler(db))                // Get sale + items
+	// 1. Un-guarded Sales Routes & Reports (No active shift required)
+	r.Get("/sales", ListSalesHandler(db))                            // List with filters
+	r.Get("/sales/:sale_id", GetSaleHandler(db))                     // Get sale + items
+	r.Get("/sales/reports/daily", DailyReportHandler(db))            // Daily summary
+	r.Get("/sales/reports/range", SalesReportHandler(db))            // Custom date range report
+	r.Get("/sales/reports/products", ProductProfitReportHandler(db)) // Product-wise profit report
+	r.Get("/sales/reports/monthly", MonthlyReportHandler(db))        // Monthly for charting
+	r.Get("/activities", GetActivitiesHandler(db))                   // Global audit log
+	r.Get("/sales/:sale_id/history", GetSaleHistoryHandler(db))      // Get sale activity history
 
-	// 2. Drafts & Cart Management (Guarded by ModuleDrafts)
-	// We use a specific route matching or a more specific group
-	drafts := r.Group("/sales")
+	// 2. Guarded Operations (Active shift required)
+	// Apply ShiftGuard to a group specifically for transactions
+	guardedSales := r.Group("/sales", middleware.ShiftGuard(db))
+	
+	guardedSales.Post("", CreateSaleHandler(db))                     // One-shot sale
+	guardedSales.Post("/:sale_id/complete", CompleteSaleHandler(db)) // Finalize basic sale
+	guardedSales.Post("/:sale_id/void", VoidSaleHandler(db))         // Void basic sale
+
+	// 3. Drafts & Cart Management (Guarded by ModuleDrafts AND ShiftGuard)
+	shiftGuard := middleware.ShiftGuard(db)
 	draftGuard := middleware.ModuleGuard(db, subscription.ModuleDrafts)
+	drafts := r.Group("/sales", shiftGuard, draftGuard) // Combined guards
 
-	drafts.Post("/draft", draftGuard, CreateDraftHandler(db))
-	drafts.Post("/:sale_id/items", draftGuard, AddItemHandler(db))
-	drafts.Post("/:sale_id/hold", draftGuard, HoldSaleHandler(db))
-	drafts.Get("/held", draftGuard, ListHeldSalesHandler(db))
-	drafts.Delete("/:sale_id/items/:item_id", draftGuard, RemoveItemHandler(db))
-	drafts.Get("/drafts", draftGuard, ListDraftsHandler(db))
+	drafts.Post("/draft", CreateDraftHandler(db))
+	drafts.Post("/:sale_id/items", AddItemHandler(db))
+	drafts.Post("/:sale_id/hold", HoldSaleHandler(db))
+	drafts.Get("/held", ListHeldSalesHandler(db))
+	drafts.Delete("/:sale_id/items/:item_id", RemoveItemHandler(db))
+	drafts.Get("/drafts", ListDraftsHandler(db))
 
-	// 3. Tables Management (Guarded by both Drafts AND Tables)
+	// 4. Tables Management (Guarded by both Drafts AND Tables)
 	tableGuard := middleware.ModuleGuard(db, subscription.ModuleTables)
-	tables := drafts.Group("/draft/tables", draftGuard, tableGuard)
+	tables := drafts.Group("/draft/tables", tableGuard)
 	tables.Post("/new", CreateDraftWithTableHandler(db))
 	tables.Post("/:sale_id/items/reserve", AddItemWithReservationHandler(db))
 	tables.Post("/:sale_id/resume", ResumeDraftHandler(db))
 	tables.Delete("/:sale_id/draft", DeleteDraftHandler(db))
 	tables.Post("/:sale_id/transfer", TransferBillHandler(db))
-	tables.Post("/:sale_id/merge", MergeBillsHandler(db)) // /sales/:sale_id/merge
-
-	// NEW: Activity Logs
-	r.Get("/activities", GetActivitiesHandler(db))                   // Global audit log
-	r.Get("/sales/:sale_id/history", GetSaleHistoryHandler(db))      // Get sale activity history
-	r.Get("/sales/reports/daily", DailyReportHandler(db))            // Daily summary
-	r.Get("/sales/reports/range", SalesReportHandler(db))            // Custom date range report
-	r.Get("/sales/reports/products", ProductProfitReportHandler(db)) // Product-wise profit report
-	r.Get("/sales/reports/monthly", MonthlyReportHandler(db))        // Monthly for charting
+	tables.Post("/:sale_id/merge", MergeBillsHandler(db))
 
 	// NEW: Enhanced Sale Actions with Reservations
 	tables.Post("/:sale_id/complete/reserve", CompleteSaleWithReservationHandler(db)) // /sales/:sale_id/complete/reserve

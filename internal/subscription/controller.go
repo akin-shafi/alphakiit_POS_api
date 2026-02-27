@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"pos-fiber-app/pkg/paystack"
 
+	"pos-fiber-app/internal/common"
 	"time"
 
 	"github.com/gofiber/fiber/v2"
@@ -31,19 +32,76 @@ func NewSubscriptionController(db *gorm.DB) *SubscriptionController {
 // @Security     BearerAuth
 // @Router       /subscription/plans [get]
 func (sc *SubscriptionController) GetPlans(c *fiber.Ctx) error {
+	var businessID uint
+	if bid, ok := c.Locals("business_id").(uint); ok {
+		businessID = bid
+	}
+
+	var bizType common.BusinessType
+	if businessID > 0 {
+		sc.db.Table("businesses").Select("type").Where("id = ?", businessID).Scan(&bizType)
+	}
+
 	var publicPlans []SubscriptionPlan
 	for _, p := range AvailablePlans {
-		if p.Type != PlanTrial {
-			publicPlans = append(publicPlans, p)
+		if p.Type == PlanTrial {
+			continue
 		}
+
+		// If plan has restrictions, check if current business type is allowed
+		if len(p.AllowedBusinessTypes) > 0 {
+			allowed := false
+			for _, t := range p.AllowedBusinessTypes {
+				if t == bizType {
+					allowed = true
+					break
+				}
+			}
+			if !allowed {
+				continue
+			}
+		}
+
+		publicPlans = append(publicPlans, p)
 	}
 	return c.JSON(publicPlans)
 }
 
 // GetPricing returns all available plans and optional modules
 func (sc *SubscriptionController) GetPricing(c *fiber.Ctx) error {
+	var businessID uint
+	if bid, ok := c.Locals("business_id").(uint); ok {
+		businessID = bid
+	}
+
+	var bizType common.BusinessType
+	if businessID > 0 {
+		sc.db.Table("businesses").Select("type").Where("id = ?", businessID).Scan(&bizType)
+	}
+
+	var filteredPlans []SubscriptionPlan
+	for _, p := range AvailablePlans {
+		if p.Type == PlanTrial {
+			continue
+		}
+
+		if len(p.AllowedBusinessTypes) > 0 {
+			allowed := false
+			for _, t := range p.AllowedBusinessTypes {
+				if t == bizType {
+					allowed = true
+					break
+				}
+			}
+			if !allowed {
+				continue
+			}
+		}
+		filteredPlans = append(filteredPlans, p)
+	}
+
 	return c.JSON(fiber.Map{
-		"plans":   AvailablePlans,
+		"plans":   filteredPlans,
 		"modules": AvailableModules,
 		"bundles": AvailableBundles,
 	})
@@ -59,7 +117,10 @@ func (sc *SubscriptionController) GetPricing(c *fiber.Ctx) error {
 // @Security     BearerAuth
 // @Router       /subscription/status [get]
 func (sc *SubscriptionController) GetStatus(c *fiber.Ctx) error {
-	businessID := c.Locals("business_id").(uint)
+	businessID, ok := c.Locals("business_id").(uint)
+	if !ok {
+		return c.Status(400).JSON(fiber.Map{"error": "Current business context missing"})
+	}
 
 	// Use CheckSubscriptionAccess to ensure we trigger expiry logic if needed
 	active, status, err := CheckSubscriptionAccess(sc.db, businessID)
@@ -84,11 +145,32 @@ func (sc *SubscriptionController) GetStatus(c *fiber.Ctx) error {
 	fmt.Printf("[DEBUG] GetStatus - Business: %d, Active: %v, Status: %s\n", businessID, active, status)
 
 	var modules []BusinessModule
-	// Find active modules. If subscription is expired, CheckSubscriptionAccess doesn't auto-expire modules,
-	// but HasModule checks expiration dates.
-	// Ideally, we should filter here too or let the frontend see them but know sub is expired.
-	// For now, return what's in DB.
 	sc.db.Where("business_id = ? AND is_active = ?", businessID, true).Find(&modules)
+
+	// Fallback: If on a plan with free modules, ensure they are present
+	var plan *SubscriptionPlan
+	for _, p := range AvailablePlans {
+		if p.Type == sub.PlanType {
+			plan = &p
+			break
+		}
+	}
+	if plan != nil && len(plan.FreeModules) > 0 {
+		activeMods := make(map[ModuleType]bool)
+		for _, m := range modules {
+			activeMods[m.Module] = true
+		}
+		for _, fm := range plan.FreeModules {
+			if !activeMods[fm] {
+				modules = append(modules, BusinessModule{
+					BusinessID: businessID,
+					Module:     fm,
+					IsActive:   true,
+					ExpiryDate: &sub.EndDate,
+				})
+			}
+		}
+	}
 
 	return c.JSON(fiber.Map{
 		"subscription": sub,
@@ -149,8 +231,23 @@ func (sc *SubscriptionController) Subscribe(c *fiber.Ctx) error {
 		})
 	}
 
-	// 1.5 Validate Module Dependencies
+	// 1.5 Get Selected Plan and Validate Module Dependencies
+	var selectedPlan *SubscriptionPlan
+	for _, p := range AvailablePlans {
+		if p.Type == req.PlanType {
+			selectedPlan = &p
+			break
+		}
+	}
+
+	if selectedPlan == nil {
+		return c.Status(400).JSON(fiber.Map{"error": "Invalid plan type"})
+	}
+
 	allRequestedModules := req.Modules
+	// Include free modules from the plan
+	allRequestedModules = append(allRequestedModules, selectedPlan.FreeModules...)
+
 	if req.BundleCode != "" {
 		for _, b := range AvailableBundles {
 			if b.Code == req.BundleCode {
@@ -169,19 +266,6 @@ func (sc *SubscriptionController) Subscribe(c *fiber.Ctx) error {
 
 	if err := validateModuleDependencies(allRequestedModules, activeModMap); err != nil {
 		return c.Status(400).JSON(fiber.Map{"error": err.Error()})
-	}
-
-	// 2. Calculate Total Amount
-	var selectedPlan *SubscriptionPlan
-	for _, p := range AvailablePlans {
-		if p.Type == req.PlanType {
-			selectedPlan = &p
-			break
-		}
-	}
-
-	if selectedPlan == nil {
-		return c.Status(400).JSON(fiber.Map{"error": "Invalid plan type"})
 	}
 
 	// Fetch current status to check for mid-cycle additions or upgrades
@@ -247,10 +331,15 @@ func (sc *SubscriptionController) Subscribe(c *fiber.Ctx) error {
 		monthMultiplier = float64(remainingDays) / 30.0
 	}
 
-	// Track modules that are part of a bundle to avoid double charging
-	bundleModules := make(map[ModuleType]bool)
-	var activeBundle *ModuleBundle
+	// Track modules that are already "covered" by plan or bundle to avoid double charging
+	coveredModules := make(map[ModuleType]bool)
+	if selectedPlan != nil {
+		for _, fm := range selectedPlan.FreeModules {
+			coveredModules[fm] = true
+		}
+	}
 
+	var activeBundle *ModuleBundle
 	if req.BundleCode != "" {
 		for _, b := range AvailableBundles {
 			if b.Code == req.BundleCode {
@@ -261,7 +350,7 @@ func (sc *SubscriptionController) Subscribe(c *fiber.Ctx) error {
 					description += " + " + b.Name
 				}
 				for _, m := range b.Modules {
-					bundleModules[m] = true
+					coveredModules[m] = true
 				}
 				break
 			}
@@ -270,7 +359,7 @@ func (sc *SubscriptionController) Subscribe(c *fiber.Ctx) error {
 
 	// Add individual modules
 	for _, modType := range req.Modules {
-		if bundleModules[modType] {
+		if coveredModules[modType] {
 			continue
 		}
 		// If mid-cycle and already active, don't charge again
@@ -366,6 +455,9 @@ func (sc *SubscriptionController) Subscribe(c *fiber.Ctx) error {
 
 	// 4. Activate Modules
 	finalModules := req.Modules
+	if selectedPlan != nil {
+		finalModules = append(finalModules, selectedPlan.FreeModules...)
+	}
 	if activeBundle != nil {
 		finalModules = append(finalModules, activeBundle.Modules...)
 	}
@@ -546,20 +638,26 @@ func (sc *SubscriptionController) ChargeSavedCard(c *fiber.Ctx) error {
 	// Actually, let's just repeat the logic to be safe.
 
 	monthMultiplier := float64(selectedPlan.DurationDays) / 30.0
-	bundleModules := make(map[ModuleType]bool)
+	coveredModules := make(map[ModuleType]bool)
+	if selectedPlan != nil {
+		for _, fm := range selectedPlan.FreeModules {
+			coveredModules[fm] = true
+		}
+	}
+
 	if req.BundleCode != "" {
 		for _, b := range AvailableBundles {
 			if b.Code == req.BundleCode {
 				totalPrice += b.Price * monthMultiplier
 				for _, m := range b.Modules {
-					bundleModules[m] = true
+					coveredModules[m] = true
 				}
 				break
 			}
 		}
 	}
 	for _, modType := range req.Modules {
-		if bundleModules[modType] {
+		if coveredModules[modType] {
 			continue
 		}
 		for _, m := range AvailableModules {
@@ -584,9 +682,9 @@ func (sc *SubscriptionController) ChargeSavedCard(c *fiber.Ctx) error {
 
 	// 5. Activate Modules (copied from Subscribe)
 	finalModules := req.Modules
-	for _, mType := range req.Modules {
-		finalModules = append(finalModules, mType)
-	} // Simplified
+	if selectedPlan != nil {
+		finalModules = append(finalModules, selectedPlan.FreeModules...)
+	}
 	// ... activation logic ...
 	// Note: I will use a helper or just repeat the modules activation.
 

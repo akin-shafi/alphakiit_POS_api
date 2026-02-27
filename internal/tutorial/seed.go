@@ -1,6 +1,7 @@
 package tutorial
 
 import (
+	"log"
 	"pos-fiber-app/internal/common"
 
 	"gorm.io/gorm"
@@ -8,7 +9,11 @@ import (
 
 func SeedTutorials(db *gorm.DB) error {
 	var count int64
-	db.Model(&Tutorial{}).Count(&count)
+	if err := db.Model(&Tutorial{}).Count(&count).Error; err != nil {
+		log.Printf("[TUTORIAL SEED] Error counting tutorials: %v", err)
+		return err
+	}
+	log.Printf("[TUTORIAL SEED] Found %d existing tutorials", count)
 	if count > 0 {
 		return nil // Already seeded
 	}
@@ -80,8 +85,11 @@ func SeedTutorials(db *gorm.DB) error {
 	}
 
 	for _, t := range tutorials {
-		db.Create(&t)
+		if err := db.Create(&t).Error; err != nil {
+			log.Printf("[TUTORIAL SEED] Failed to create tutorial '%s': %v", t.Title, err)
+		}
 	}
 
+	log.Printf("[TUTORIAL SEED] Successfully seeded %d tutorials", len(tutorials))
 	return nil
 }

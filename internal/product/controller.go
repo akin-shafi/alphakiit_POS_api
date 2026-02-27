@@ -106,6 +106,14 @@ func CreateHandler(db *gorm.DB) fiber.Handler {
 		}
 		// -------------------------------------
 
+		// Handle multipart form fallbacks for booleans
+		if trackStr := c.FormValue("track_by_round"); trackStr != "" {
+			req.TrackByRound = trackStr == "true"
+		}
+		if uom := c.FormValue("unit_of_measure"); uom != "" {
+			req.UnitOfMeasure = uom
+		}
+
 		product, err := Create(db, bizID, req)
 		if err != nil {
 			return fiber.ErrInternalServerError
@@ -178,6 +186,15 @@ func UpdateHandler(db *gorm.DB) fiber.Handler {
 		}
 
 		bizID := c.Locals("current_business_id").(uint)
+
+		// Handle multipart form fallbacks for booleans (Fiber's BodyParser can be picky with pointers in multipart)
+		if trackStr := c.FormValue("track_by_round"); trackStr != "" {
+			val := trackStr == "true"
+			req.TrackByRound = &val
+		}
+		if uom := c.FormValue("unit_of_measure"); uom != "" {
+			req.UnitOfMeasure = uom
+		}
 
 		product, err := Update(db, uint(id), bizID, req)
 		if err != nil {

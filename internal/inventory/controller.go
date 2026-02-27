@@ -127,13 +127,14 @@ func StartRoundHandler(db *gorm.DB) fiber.Handler {
 		var req struct {
 			ProductID   uint    `json:"product_id"`
 			TotalVolume float64 `json:"total_volume"`
+			Cost        float64 `json:"cost"`
 		}
 		if err := c.BodyParser(&req); err != nil {
 			return fiber.NewError(400, "invalid request body")
 		}
 		bizID := c.Locals("current_business_id").(uint)
 
-		round, err := StartNewRound(db, bizID, req.ProductID, req.TotalVolume)
+		round, err := StartNewRound(db, bizID, req.ProductID, req.TotalVolume, req.Cost)
 		if err != nil {
 			return c.Status(400).JSON(fiber.Map{"error": err.Error()})
 		}

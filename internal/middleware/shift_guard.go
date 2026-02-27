@@ -27,7 +27,7 @@ func ShiftGuard(db *gorm.DB) fiber.Handler {
 		activeShift, err := shiftService.ValidateActiveShift(businessID, userID)
 
 		if err != nil {
-			return fiber.NewError(fiber.StatusForbidden, "You must start a shift before processing sales")
+			return fiber.NewError(fiber.StatusForbidden, err.Error())
 		}
 
 		// Store shift ID in context for use in handlers

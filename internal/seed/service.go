@@ -149,28 +149,56 @@ func SeedSampleData(db *gorm.DB, bizID uint, bizType common.BusinessType) error 
 
 			for j, sp := range sc.Products {
 				p := product.Product{
-					BusinessID: bizID,
-					CategoryID: cat.ID,
-					Name:       sp.Name,
-					Price:      sp.Price,
-					Cost:       sp.Cost,
-					Stock:      sp.Stock,
-					SKU:        fmt.Sprintf("%s-%d-%d%d-%d", sp.SKUPrefix, bizID, i, j, time.Now().UnixNano()%10000),
-					Active:     true,
+					BusinessID:    bizID,
+					CategoryID:    cat.ID,
+					Name:          sp.Name,
+					Price:         sp.Price,
+					Cost:          sp.Cost,
+					Stock:         sp.Stock,
+					TrackByRound:  sp.TrackByRound,
+					UnitOfMeasure: sp.UnitOfMeasure,
+					SKU:           fmt.Sprintf("%s-%d-%d%d-%d", sp.SKUPrefix, bizID, i, j, time.Now().UnixNano()%10000),
+					Active:        true,
 				}
 				if err := tx.Create(&p).Error; err != nil {
 					return err
 				}
 
-				// Create inventory record
-				inv := inventory.Inventory{
-					ProductID:     p.ID,
-					BusinessID:    bizID,
-					CurrentStock:  p.Stock,
-					LowStockAlert: 5,
-				}
-				if err := tx.Create(&inv).Error; err != nil {
-					return err
+				if p.TrackByRound {
+					// Seed an initial OPEN round for bulk products
+					// TotalVolume is the stock converted to the user's unit if needed,
+					// but for now we assume Stock is in the system base unit (10g).
+					// If Stock is 50,000 (meaning 500kg), TotalVolume in "kg" should be 500.
+					volume := float64(p.Stock)
+					if p.UnitOfMeasure == "kg" || p.UnitOfMeasure == "liter" {
+						volume = volume / 100.0 // 1 unit = 10g
+					} else if p.UnitOfMeasure == "ton" {
+						volume = volume / 100000.0
+					}
+
+					round := inventory.InventoryRound{
+						BusinessID:      bizID,
+						ProductID:       p.ID,
+						TotalVolume:     volume,
+						RemainingVolume: volume,
+						PurchaseCost:    p.Cost * float64(p.Stock),
+						Status:          "OPEN",
+						StartDate:       time.Now(),
+					}
+					if err := tx.Create(&round).Error; err != nil {
+						return err
+					}
+				} else {
+					// Create normal inventory record
+					inv := inventory.Inventory{
+						ProductID:     p.ID,
+						BusinessID:    bizID,
+						CurrentStock:  p.Stock,
+						LowStockAlert: 5,
+					}
+					if err := tx.Create(&inv).Error; err != nil {
+						return err
+					}
 				}
 			}
 		}

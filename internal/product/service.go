@@ -4,11 +4,21 @@ package product
 import (
 	"errors"
 
+	"pos-fiber-app/internal/subscription"
 	"gorm.io/gorm"
 )
 
 // Create creates a new product for the given business
 func Create(db *gorm.DB, businessID uint, req CreateProductRequest) (*Product, error) {
+	// Check product limit
+	limit := subscription.GetProductLimit(db, businessID)
+	var count int64
+	db.Table("products").Where("business_id = ? AND active = ?", businessID, true).Count(&count)
+
+	if int(count) >= limit {
+		return nil, errors.New("PRODUCT_LIMIT_REACHED: You have reached the maximum number of products allowed by your current plan. Please upgrade to add more.")
+	}
+
 	product := &Product{
 		BusinessID:  businessID,
 		Name:        req.Name,
@@ -21,6 +31,8 @@ func Create(db *gorm.DB, businessID uint, req CreateProductRequest) (*Product, e
 		Stock:       req.Stock,
 		MinStock:    req.MinStock,
 		Barcode:     req.Barcode,
+		TrackByRound: req.TrackByRound,
+		UnitOfMeasure: req.UnitOfMeasure,
 		Active:      true, // default
 	}
 
@@ -48,7 +60,7 @@ func ListByBusiness(db *gorm.DB, businessID uint, filters ...func(*gorm.DB) *gor
 	var products []Product
 
 	query := db.Table("products").
-		Select("products.id, products.business_id, products.category_id, products.name, products.sku, products.description, products.price, products.cost, products.image_url, products.min_stock, products.barcode, products.active, COALESCE(inventories.current_stock, products.stock) as stock").
+		Select("products.id, products.business_id, products.category_id, products.name, products.sku, products.description, products.price, products.cost, products.image_url, products.min_stock, products.barcode, products.active, products.track_by_round, products.unit_of_measure, COALESCE(inventories.current_stock, products.stock) as stock").
 		Joins("LEFT JOIN inventories ON inventories.product_id = products.id AND inventories.business_id = products.business_id").
 		Where("products.business_id = ? AND products.active = ?", businessID, true)
 
@@ -82,7 +94,7 @@ func Get(db *gorm.DB, id, businessID uint) (*Product, error) {
 	var product Product
 
 	err := db.Table("products").
-		Select("products.id, products.business_id, products.category_id, products.name, products.sku, products.description, products.price, products.cost, products.image_url, products.min_stock, products.barcode, products.active, COALESCE(inventories.current_stock, products.stock) as stock").
+		Select("products.id, products.business_id, products.category_id, products.name, products.sku, products.description, products.price, products.cost, products.image_url, products.min_stock, products.barcode, products.active, products.track_by_round, products.unit_of_measure, COALESCE(inventories.current_stock, products.stock) as stock").
 		Joins("LEFT JOIN inventories ON inventories.product_id = products.id AND inventories.business_id = products.business_id").
 		Where("products.id = ? AND products.business_id = ?", id, businessID).
 		First(&product).Error
@@ -134,7 +146,22 @@ func Update(db *gorm.DB, id, businessID uint, req UpdateProductRequest) (*Produc
 	if req.Barcode != "" {
 		product.Barcode = req.Barcode
 	}
+	if req.TrackByRound != nil {
+		product.TrackByRound = *req.TrackByRound
+	}
+	if req.UnitOfMeasure != "" {
+		product.UnitOfMeasure = req.UnitOfMeasure
+	}
 	if req.Active != nil {
+		if *req.Active && !product.Active {
+			// Check limit when reactivating
+			limit := subscription.GetProductLimit(db, businessID)
+			var count int64
+			db.Table("products").Where("business_id = ? AND active = ?", businessID, true).Count(&count)
+			if int(count) >= limit {
+				return nil, errors.New("PRODUCT_LIMIT_REACHED: Cannot reactivate product. You have reached your plan limit.")
+			}
+		}
 		product.Active = *req.Active
 	}
 
@@ -183,7 +210,7 @@ func ListLowStock(db *gorm.DB, businessID uint) ([]Product, error) {
 	var products []Product
 
 	err := db.Table("products").
-		Select("products.id, products.business_id, products.category_id, products.name, products.sku, products.description, products.price, products.cost, products.image_url, products.min_stock, products.barcode, products.active, COALESCE(inventories.current_stock, products.stock) as stock").
+		Select("products.id, products.business_id, products.category_id, products.name, products.sku, products.description, products.price, products.cost, products.image_url, products.min_stock, products.barcode, products.active, products.track_by_round, products.unit_of_measure, COALESCE(inventories.current_stock, products.stock) as stock").
 		Joins("LEFT JOIN inventories ON inventories.product_id = products.id AND inventories.business_id = products.business_id").
 		Where("products.business_id = ? AND products.active = ? AND COALESCE(inventories.current_stock, products.stock) <= products.min_stock", businessID, true).
 		Find(&products).Error

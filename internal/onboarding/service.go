@@ -53,10 +53,17 @@ func OnboardBusiness(
 		// Handle Referral Token
 		if payload.ReferralToken != "" {
 			var refCode subscription.ReferralCode
+			// 1. Link to Installer
 			if err := tx.Where("code = ? AND is_active = ?", payload.ReferralToken, true).First(&refCode).Error; err == nil {
 				biz.InstallerID = &refCode.InstallerID
 				// Increment token usage
 				tx.Model(&refCode).Update("uses_count", gorm.Expr("uses_count + 1"))
+			}
+
+			// 2. Link to Promo Code (for influencer auto-discount)
+			var promo subscription.PromoCode
+			if err := tx.Where("code = ? AND active = ?", payload.ReferralToken, true).First(&promo).Error; err == nil {
+				biz.DefaultPromoCode = promo.Code
 			}
 		}
 

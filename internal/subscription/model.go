@@ -87,13 +87,15 @@ type PromoCode struct {
 }
 
 type ReferralCode struct {
-	ID          uint      `gorm:"primaryKey" json:"id"`
-	Code        string    `gorm:"uniqueIndex;type:varchar(50)" json:"code"`
-	InstallerID uint      `gorm:"index" json:"installer_id"`
-	UsesCount   int       `gorm:"default:0" json:"uses_count"`
-	IsActive    bool      `gorm:"default:true" json:"is_active"`
-	CreatedAt   time.Time `json:"created_at"`
-	UpdatedAt   time.Time `json:"updated_at"`
+	ID                       uint      `gorm:"primaryKey" json:"id"`
+	Code                     string    `gorm:"uniqueIndex;type:varchar(50)" json:"code"`
+	InstallerID              uint      `gorm:"index" json:"installer_id"`
+	UsesCount                int       `gorm:"default:0" json:"uses_count"`
+	OnboardingCommissionRate float64   `json:"onboarding_commission_rate"` // Specific rate for this code
+	RenewalCommissionRate    float64   `json:"renewal_commission_rate"`    // Specific rate for this code
+	IsActive                 bool      `gorm:"default:true" json:"is_active"`
+	CreatedAt                time.Time `json:"created_at"`
+	UpdatedAt                time.Time `json:"updated_at"`
 }
 
 type CommissionStatus string

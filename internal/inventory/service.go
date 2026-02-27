@@ -104,6 +104,11 @@ func AdjustStockFromRound(db *gorm.DB, productID, businessID uint, quantity floa
 		return err
 	}
 
+	// Sync products.stock field so frontend can easily check availability
+	if err := db.Table("products").Where("id = ? AND business_id = ?", productID, businessID).Update("stock", int(newRemaining)).Error; err != nil {
+		return fmt.Errorf("failed to sync product stock: %w", err)
+	}
+
 	// Check for Low Stock in Bulk Round (15% threshold as default)
 	if newRemaining <= (0.15*round.TotalVolume) && quantity < 0 {
 		go func() {
@@ -117,7 +122,7 @@ func AdjustStockFromRound(db *gorm.DB, productID, businessID uint, quantity floa
 	return nil
 }
 
-func StartNewRound(db *gorm.DB, businessID, productID uint, totalVolume float64) (*InventoryRound, error) {
+func StartNewRound(db *gorm.DB, businessID, productID uint, totalVolume, purchaseCost float64) (*InventoryRound, error) {
 	// First, check if there's already an OPEN round
 	var existing int64
 	db.Model(&InventoryRound{}).Where("product_id = ? AND business_id = ? AND status = 'OPEN'", productID, businessID).Count(&existing)
@@ -130,6 +135,7 @@ func StartNewRound(db *gorm.DB, businessID, productID uint, totalVolume float64)
 		ProductID:       productID,
 		TotalVolume:     totalVolume,
 		RemainingVolume: totalVolume,
+		PurchaseCost:    purchaseCost,
 		Status:          "OPEN",
 		StartDate:       time.Now(),
 	}
@@ -137,6 +143,9 @@ func StartNewRound(db *gorm.DB, businessID, productID uint, totalVolume float64)
 	if err := db.Create(round).Error; err != nil {
 		return nil, err
 	}
+
+	// Update the product's cost to match the latest restock cost (as current cost per ton)
+	db.Table("products").Where("id = ?", productID).Update("cost", purchaseCost/totalVolume)
 
 	return round, nil
 }

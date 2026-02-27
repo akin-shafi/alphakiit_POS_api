@@ -37,13 +37,15 @@ const (
 )
 
 type SubscriptionPlan struct {
-	Type         PlanType `json:"type"`
-	Name         string   `json:"name"`
-	DurationDays int      `json:"duration_days"`
-	Price        float64  `json:"price"`
-	Currency     string   `json:"currency"`
-	UserLimit    int      `json:"user_limit"`
-	ProductLimit int      `json:"product_limit"`
+	Type                 PlanType       `json:"type"`
+	Name                 string         `json:"name"`
+	DurationDays         int            `json:"duration_days"`
+	Price                float64        `json:"price"`
+	Currency             string         `json:"currency"`
+	UserLimit            int            `json:"user_limit"`
+	ProductLimit         int            `json:"product_limit"`
+	AllowedBusinessTypes []BusinessType `json:"allowed_business_types,omitempty"`
+	FreeModules          []ModuleType   `json:"free_modules,omitempty"`
 }
 
 var AvailablePlans = []SubscriptionPlan{
@@ -84,31 +86,37 @@ var AvailablePlans = []SubscriptionPlan{
 		ProductLimit: 5000,
 	},
 	{
-		Type:         PlanServiceMonthly,
-		Name:         "Basic Sales POS (Monthly)",
-		DurationDays: 30,
-		Price:        15000,
-		Currency:     "NGN",
-		UserLimit:    2,
-		ProductLimit: 25, // Strictly for kiosks/LPG/small shops
+		Type:                 PlanServiceMonthly,
+		Name:                 "Basic Sales POS (Monthly)",
+		DurationDays:         30,
+		Price:                15000,
+		Currency:             "NGN",
+		UserLimit:            2,
+		ProductLimit:         25, // Strictly for kiosks/LPG/small shops
+		AllowedBusinessTypes: []BusinessType{TypeLPGStation, TypeFuelStation},
+		FreeModules:          []ModuleType{ModuleBulkStock},
 	},
 	{
-		Type:         PlanServiceQuarterly,
-		Name:         "Basic Sales POS (Quarterly)",
-		DurationDays: 90,
-		Price:        40000,
-		Currency:     "NGN",
-		UserLimit:    3, // +1 User Bonus
-		ProductLimit: 25,
+		Type:                 PlanServiceQuarterly,
+		Name:                 "Basic Sales POS (Quarterly)",
+		DurationDays:         90,
+		Price:                40000,
+		Currency:             "NGN",
+		UserLimit:            3, // +1 User Bonus
+		ProductLimit:         25,
+		AllowedBusinessTypes: []BusinessType{TypeLPGStation, TypeFuelStation},
+		FreeModules:          []ModuleType{ModuleBulkStock},
 	},
 	{
-		Type:         PlanServiceAnnual,
-		Name:         "Basic Sales POS (Annual)",
-		DurationDays: 365,
-		Price:        150000,
-		Currency:     "NGN",
-		UserLimit:    5, // +3 User Bonus
-		ProductLimit: 25,
+		Type:                 PlanServiceAnnual,
+		Name:                 "Basic Sales POS (Annual)",
+		DurationDays:         365,
+		Price:                150000,
+		Currency:             "NGN",
+		UserLimit:            5, // +3 User Bonus
+		ProductLimit:         25,
+		AllowedBusinessTypes: []BusinessType{TypeLPGStation, TypeFuelStation},
+		FreeModules:          []ModuleType{ModuleBulkStock},
 	},
 }
 

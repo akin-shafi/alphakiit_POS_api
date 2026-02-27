@@ -221,22 +221,35 @@ func (ac *AdminController) GetAllPromoCodes(c *fiber.Ctx) error {
 // @Router       /admin/promo-codes [post]
 func (ac *AdminController) CreatePromoCode(c *fiber.Ctx) error {
 	var req struct {
-		Code               string    `json:"code"`
-		DiscountPercentage float64   `json:"discount_percentage"`
-		MaxUses            int       `json:"max_uses"`
-		ExpiryDate         time.Time `json:"expiry_date"`
-		Active             bool      `json:"active"`
+		Code               string  `json:"code"`
+		DiscountPercentage float64 `json:"discount_percentage"`
+		MaxUses            int     `json:"max_uses"`
+		ExpiryDate         string  `json:"expiry_date"`
+		Active             bool    `json:"active"`
 	}
 
 	if err := c.BodyParser(&req); err != nil {
-		return c.Status(400).JSON(fiber.Map{"error": "Invalid request"})
+		return c.Status(400).JSON(fiber.Map{"error": "Invalid request: " + err.Error()})
+	}
+
+	// Parse the expiry date - support both "2024-12-31" and RFC3339
+	var expiryDate time.Time
+	var parseErr error
+	if req.ExpiryDate != "" {
+		expiryDate, parseErr = time.Parse(time.RFC3339, req.ExpiryDate)
+		if parseErr != nil {
+			expiryDate, parseErr = time.Parse("2006-01-02", req.ExpiryDate)
+			if parseErr != nil {
+				return c.Status(400).JSON(fiber.Map{"error": "Invalid expiry_date format. Use YYYY-MM-DD or RFC3339"})
+			}
+		}
 	}
 
 	promoCode := PromoCode{
 		Code:               req.Code,
 		DiscountPercentage: req.DiscountPercentage,
 		MaxUses:            req.MaxUses,
-		ExpiryDate:         req.ExpiryDate,
+		ExpiryDate:         expiryDate,
 		Active:             req.Active,
 	}
 
@@ -267,14 +280,14 @@ func (ac *AdminController) UpdatePromoCode(c *fiber.Ctx) error {
 	}
 
 	var req struct {
-		DiscountPercentage *float64   `json:"discount_percentage,omitempty"`
-		MaxUses            *int       `json:"max_uses,omitempty"`
-		ExpiryDate         *time.Time `json:"expiry_date,omitempty"`
-		Active             *bool      `json:"active,omitempty"`
+		DiscountPercentage *float64 `json:"discount_percentage,omitempty"`
+		MaxUses            *int     `json:"max_uses,omitempty"`
+		ExpiryDate         *string  `json:"expiry_date,omitempty"`
+		Active             *bool    `json:"active,omitempty"`
 	}
 
 	if err := c.BodyParser(&req); err != nil {
-		return c.Status(400).JSON(fiber.Map{"error": "Invalid request"})
+		return c.Status(400).JSON(fiber.Map{"error": "Invalid request: " + err.Error()})
 	}
 
 	updates := make(map[string]interface{})
@@ -285,7 +298,15 @@ func (ac *AdminController) UpdatePromoCode(c *fiber.Ctx) error {
 		updates["max_uses"] = *req.MaxUses
 	}
 	if req.ExpiryDate != nil {
-		updates["expiry_date"] = req.ExpiryDate
+		// Parse the expiry date - support both "2024-12-31" and RFC3339
+		expiryDate, parseErr := time.Parse(time.RFC3339, *req.ExpiryDate)
+		if parseErr != nil {
+			expiryDate, parseErr = time.Parse("2006-01-02", *req.ExpiryDate)
+			if parseErr != nil {
+				return c.Status(400).JSON(fiber.Map{"error": "Invalid expiry_date format. Use YYYY-MM-DD or RFC3339"})
+			}
+		}
+		updates["expiry_date"] = expiryDate
 	}
 	if req.Active != nil {
 		updates["active"] = *req.Active

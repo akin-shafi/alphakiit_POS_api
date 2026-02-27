@@ -43,13 +43,14 @@ type Business struct {
 	ActiveModules          []string   `gorm:"-" json:"active_modules,omitempty"` // populated on fetch
 	VATRate                float64    `gorm:"default:7.5" json:"vat_rate"`
 	TaxNumber              string     `gorm:"size:50" json:"tax_number"`
+	DefaultPromoCode       string     `gorm:"size:50" json:"default_promo_code,omitempty"`
 
 	// Trial Activation System
 	TrialActivated          bool       `gorm:"default:false" json:"trial_activated"`
 	TrialActivationDeadline *time.Time `json:"trial_activation_deadline,omitempty"`
 	ActivatedAt             *time.Time `json:"activated_at,omitempty"`
 
-	CreatedAt time.Time      `json:"-"`
+	CreatedAt time.Time      `json:"created_at"`
 	UpdatedAt time.Time      `json:"-"`
 	DeletedAt gorm.DeletedAt `gorm:"index" json:"-"`
 }

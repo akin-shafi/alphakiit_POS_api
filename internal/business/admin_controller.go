@@ -2,11 +2,35 @@ package business
 
 import (
 	"pos-fiber-app/internal/common"
+	"pos-fiber-app/internal/user"
 	"strings"
+	"time"
 
 	"github.com/gofiber/fiber/v2"
 	"gorm.io/gorm"
 )
+
+type ChartDataPoint struct {
+	Date    string  `json:"date"`
+	Revenue float64 `json:"revenue"`
+	Profit  float64 `json:"profit"`
+	Expense float64 `json:"expense"`
+}
+
+type BusinessDetailsResponse struct {
+	Business Business    `json:"business"`
+	Owner    *user.User  `json:"owner"`
+	Staff    []user.User `json:"staff"`
+	Stats    struct {
+		RevenueToday float64 `json:"revenue_today"`
+		RevenueWeek  float64 `json:"revenue_week"`
+		RevenueMonth float64 `json:"revenue_month"`
+		TotalRevenue float64 `json:"total_revenue"`
+		TotalProfit  float64 `json:"total_profit"`
+		TotalExpense float64 `json:"total_expense"`
+	} `json:"stats"`
+	ChartData []ChartDataPoint `json:"chart_data"`
+}
 
 type AdminBusinessController struct {
 	db *gorm.DB
@@ -213,6 +237,121 @@ func (ac *AdminBusinessController) ResetBusinessData(c *fiber.Ctx) error {
 	})
 }
 
+// GetBusinessDetails returns comprehensive stats for a single business
+func (ac *AdminBusinessController) GetBusinessDetails(c *fiber.Ctx) error {
+	id, _ := c.ParamsInt("id")
+	businessID := uint(id)
+
+	var biz Business
+	if err := ac.db.First(&biz, businessID).Error; err != nil {
+		return c.Status(404).JSON(fiber.Map{"error": "Business not found"})
+	}
+
+	var response BusinessDetailsResponse
+	response.Business = biz
+
+	// 1. Get Owner
+	var owner user.User
+	if err := ac.db.Where("tenant_id = ? AND role = ?", biz.TenantID, "OWNER").First(&owner).Error; err == nil {
+		response.Owner = &owner
+	}
+
+	// 2. Get Staff
+	ac.db.Where("tenant_id = ? AND role != ?", biz.TenantID, "OWNER").Find(&response.Staff)
+
+	// 3. Get Stats (Direct SQL to avoid cycles)
+	now := time.Now()
+	startOfToday := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
+	startOfWeek := startOfToday.AddDate(0, 0, -int(startOfToday.Weekday()))
+	startOfMonth := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, now.Location())
+
+	// Revenue Today
+	ac.db.Table("sales").
+		Where("business_id = ? AND status = ? AND sale_date >= ?", businessID, "COMPLETED", startOfToday).
+		Select("SUM(total)").Scan(&response.Stats.RevenueToday)
+
+	// Revenue Week
+	ac.db.Table("sales").
+		Where("business_id = ? AND status = ? AND sale_date >= ?", businessID, "COMPLETED", startOfWeek).
+		Select("SUM(total)").Scan(&response.Stats.RevenueWeek)
+
+	// Revenue Month
+	ac.db.Table("sales").
+		Where("business_id = ? AND status = ? AND sale_date >= ?", businessID, "COMPLETED", startOfMonth).
+		Select("SUM(total)").Scan(&response.Stats.RevenueMonth)
+
+	// Totals (Historical + Live)
+	var liveRevenue float64
+	var liveProfit float64
+	ac.db.Table("sales").
+		Joins("JOIN sale_items ON sale_items.sale_id = sales.id").
+		Where("sales.business_id = ? AND sales.status = ?", businessID, "COMPLETED").
+		Select("SUM(sales.total) as revenue, (SUM(sale_items.profit) - SUM(sales.discount)) as profit").
+		Scan(&struct {
+			Revenue float64
+			Profit  float64
+		}{Revenue: liveRevenue, Profit: liveProfit})
+
+	var archivedRevenue float64
+	var archivedProfit float64
+	ac.db.Table("sale_summaries").
+		Where("business_id = ?", businessID).
+		Select("SUM(total_sales), SUM(total_profit)").
+		Row().Scan(&archivedRevenue, &archivedProfit)
+
+	response.Stats.TotalRevenue = liveRevenue + archivedRevenue
+	response.Stats.TotalProfit = liveProfit + archivedProfit
+
+	// Total Expenses
+	ac.db.Table("expenses").
+		Where("business_id = ? AND deleted_at IS NULL", businessID).
+		Select("SUM(amount)").Scan(&response.Stats.TotalExpense)
+
+	// 4. Chart Data (Last 6 Months)
+	sixMonthsAgo := startOfMonth.AddDate(0, -5, 0)
+
+	// Group by month
+	// query := `
+	// 	SELECT 
+	// 		TO_CHAR(d, 'YYYY-MM') as month,
+	// 		COALESCE(SUM(s.total), 0) as revenue,
+	// 		COALESCE((SELECT SUM(profit) FROM sale_items WHERE sale_id IN (SELECT id FROM sales s2 WHERE s2.tenant_id = ? AND TO_CHAR(s2.sale_date, 'YYYY-MM') = TO_CHAR(d, 'YYYY-MM') AND s2.status = 'COMPLETED')), 0) as profit,
+	// 		COALESCE((SELECT SUM(amount) FROM expenses WHERE tenant_id = ? AND TO_CHAR(date, 'YYYY-MM') = TO_CHAR(d, 'YYYY-MM') AND deleted_at IS NULL), 0) as expense
+	// 	FROM generate_series(?, ?, '1 month'::interval) d
+	// 	LEFT JOIN sales s ON s.tenant_id = ? AND TO_CHAR(s.sale_date, 'YYYY-MM') = TO_CHAR(d, 'YYYY-MM') AND s.status = 'COMPLETED'
+	// 	GROUP BY month
+	// 	ORDER BY month ASC
+	// `
+	// Wait, Postgres generate_series/TO_CHAR might not be available if using SQLite for dev,
+	// but the project seems to use Postgres based on previous queries.
+	// Actually, I'll use a simpler approach if possible to be safe, but let's stick to Postgres styles used elsewhere.
+	// Note: BusinessID is better than TenantID here for per-business details.
+
+	rows, err := ac.db.Raw(`
+		WITH months AS (
+			SELECT generate_series(date_trunc('month', ?::timestamp), date_trunc('month', NOW()), '1 month'::interval) AS m
+		)
+		SELECT 
+			TO_CHAR(m, 'Mon YYYY') as date,
+			COALESCE((SELECT SUM(total) FROM sales WHERE business_id = ? AND status = 'COMPLETED' AND date_trunc('month', sale_date) = m), 0) as revenue,
+			COALESCE((SELECT SUM(profit) FROM sale_items WHERE sale_id IN (SELECT id FROM sales WHERE business_id = ? AND status = 'COMPLETED' AND date_trunc('month', sale_date) = m)), 0) as profit,
+			COALESCE((SELECT SUM(amount) FROM expenses WHERE business_id = ? AND deleted_at IS NULL AND date_trunc('month', date) = m), 0) as expense
+		FROM months
+		ORDER BY m ASC
+	`, sixMonthsAgo, businessID, businessID, businessID).Rows()
+
+	if err == nil {
+		defer rows.Close()
+		for rows.Next() {
+			var d ChartDataPoint // Use the defined struct
+			rows.Scan(&d.Date, &d.Revenue, &d.Profit, &d.Expense)
+			response.ChartData = append(response.ChartData, d)
+		}
+	}
+
+	return c.JSON(response)
+}
+
 // RegisterAdminRoutes registers routes for admin business management
 func RegisterAdminRoutes(r fiber.Router, db *gorm.DB) {
 	ac := NewAdminBusinessController(db)
@@ -222,4 +361,5 @@ func RegisterAdminRoutes(r fiber.Router, db *gorm.DB) {
 	r.Put("/admin/businesses/:id", ac.UpdateBusiness)
 	r.Delete("/admin/businesses/:id", ac.DeleteBusiness)
 	r.Post("/admin/businesses/:id/reset", ac.ResetBusinessData)
+	r.Get("/admin/businesses/:id/details", ac.GetBusinessDetails)
 }

@@ -30,6 +30,13 @@ func RegisterAdminRoutes(router fiber.Router, db *gorm.DB) {
 	adminGroup.Patch("/commissions/:id/status", AdminUpdateCommissionStatusHandler(db))
 	adminGroup.Get("/commissions/settings", GetCommissionSettingsHandler(db))
 	adminGroup.Put("/commissions/settings", UpdateCommissionSettingsHandler(db))
+
+	// Influencers/Affiliates
+	adminGroup.Get("/affiliates", AdminListAffiliatesHandler(db))
+	adminGroup.Post("/affiliates", AdminCreateInfluencerHandler(db))
+	adminGroup.Get("/affiliates/:id/stats", AdminGetAffiliateStatsHandler(db))
+	adminGroup.Put("/affiliates/:id", AdminUpdateAffiliateHandler(db))
+	adminGroup.Delete("/affiliates/:id", AdminDeleteAffiliateHandler(db))
 	// Training Resources
 	adminGroup.Get("/training-resources", AdminListTrainingResourcesHandler(db))
 	adminGroup.Post("/training-resources", AdminCreateTrainingResourceHandler(db))

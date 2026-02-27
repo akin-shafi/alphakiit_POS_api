@@ -119,7 +119,7 @@ func UpdateHandler(db *gorm.DB) fiber.Handler {
 		}
 
 		// Basic validation
-		if req.Name == "" && req.Type == "" && req.Address == "" && req.City == "" && req.DataRetentionMonths == nil && req.AutoArchiveEnabled == nil && req.ArchiveFrequency == "" && req.WhatsAppEnabled == nil && req.WhatsAppNumber == "" && req.TableManagementEnabled == nil && req.SaveToDraftEnabled == nil {
+		if req.Name == "" && req.Type == "" && req.Address == "" && req.City == "" && req.DataRetentionMonths == nil && req.AutoArchiveEnabled == nil && req.ArchiveFrequency == "" && req.WhatsAppEnabled == nil && req.WhatsAppNumber == "" && req.TableManagementEnabled == nil && req.SaveToDraftEnabled == nil && req.Slug == "" {
 			return fiber.NewError(fiber.StatusBadRequest, "at least one field must be provided for update")
 		}
 
@@ -164,6 +164,15 @@ func UpdateHandler(db *gorm.DB) fiber.Handler {
 		}
 		if req.SaveToDraftEnabled != nil {
 			updates["save_to_draft_enabled"] = *req.SaveToDraftEnabled
+		}
+		if req.Slug != "" {
+			// Validate slug uniqueness
+			var existingCount int64
+			db.Table("businesses").Where("slug = ? AND id != ?", req.Slug, id).Count(&existingCount)
+			if existingCount > 0 {
+				return fiber.NewError(fiber.StatusConflict, "This menu address is already taken. Please try a different one.")
+			}
+			updates["slug"] = req.Slug
 		}
 
 		// Perform update
@@ -261,9 +270,13 @@ func GoogleCallbackHandler(db *gorm.DB) fiber.Handler {
 // GetTrialChecklistHandler returns the trial activation checklist for the current business
 func GetTrialChecklistHandler(db *gorm.DB) fiber.Handler {
 	return func(c *fiber.Ctx) error {
-		bizID := c.Locals("current_business_id").(uint)
-		if bizID == 0 {
-			return fiber.NewError(fiber.StatusBadRequest, "no business context")
+		bizIDVal := c.Locals("current_business_id")
+		if bizIDVal == nil {
+			return fiber.NewError(fiber.StatusBadRequest, "no business context (missing header)")
+		}
+		bizID, ok := bizIDVal.(uint)
+		if !ok || bizID == 0 {
+			return fiber.NewError(fiber.StatusBadRequest, "invalid business context")
 		}
 
 		var checklist TrialChecklist

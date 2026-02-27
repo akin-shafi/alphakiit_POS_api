@@ -22,7 +22,7 @@ func Create(db *gorm.DB, businessID uint, req CreateExpenseRequest) (*Expense, e
 }
 
 func List(db *gorm.DB, businessID uint, from, to string) ([]Expense, error) {
-	var expenses []Expense
+	expenses := []Expense{}
 	query := db.Where("business_id = ?", businessID)
 
 	if from != "" {

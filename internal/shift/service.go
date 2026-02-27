@@ -3,6 +3,7 @@ package shift
 import (
 	"errors"
 	"fmt"
+	"pos-fiber-app/internal/common"
 	"pos-fiber-app/internal/notification"
 	"strconv"
 	"time"
@@ -73,13 +74,30 @@ func (s *ShiftService) EndShift(shiftID uint, endCash float64, closedByName stri
 
 	// Process Readings
 	for _, r := range readings {
-		// Create a reading record
-		// Calculate opening (ideally fetched from previous shift close or start of day)
-		// For this pilot, we just save the closing value.
+		var prevReading ShiftReading
+		// Find the last closed shift reading for this business & product
+		s.db.Table("shift_readings").
+			Joins("JOIN shifts ON shifts.id = shift_readings.shift_id").
+			Where("shifts.business_id = ? AND shift_readings.product_id = ? AND shifts.status = 'closed'", shift.BusinessID, r.ProductID).
+			Order("shifts.end_time DESC").Limit(1).Scan(&prevReading)
+
+		opening := prevReading.ClosingValue
+		// If it's the first shift ever or after a long gap, opening might be 0 but product might have stock.
+		// For simplicity, we use what we find.
+
+		diff := opening - r.ClosingValue // Consumption = Opening Stock - Closing Stock
+		if diff < 0 {
+			// If meter reading is cumulative, diff = Closing - Opening.
+			// But the user formula (Opening - Closing) suggests Remaining Volume tracking.
+			diff = r.ClosingValue - opening
+		}
+
 		reading := ShiftReading{
 			ShiftID:      shift.ID,
 			ProductID:    r.ProductID,
+			OpeningValue: opening,
 			ClosingValue: r.ClosingValue,
+			Difference:   diff,
 			CreatedAt:    time.Now(),
 		}
 		s.db.Create(&reading)
@@ -227,11 +245,32 @@ func (s *ShiftService) ValidateActiveShift(businessID, userID uint) (*Shift, err
 		return nil, errors.New("no active shift found - please start your shift first")
 	}
 
+	// LPG/Fuel Station discipline: force close if from previous day
+	var bizType common.BusinessType
+	s.db.Table("businesses").Select("type").Where("id = ?", businessID).Scan(&bizType)
+
+	if bizType == common.TypeLPGStation || bizType == common.TypeFuelStation {
+		now := time.Now()
+		today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
+
+		if shift.StartTime.Before(today) {
+			return nil, errors.New("STALE_SHIFT: You have an unclosed shift from a previous day. Please close it and record meter readings before processing new sales.")
+		}
+	}
+
 	return shift, nil
 }
 
 // AutoCloseOldShifts closes any open shifts that started on previous days
 func (s *ShiftService) AutoCloseOldShifts(businessID uint) {
+	// For LPG and Fuel Stations, we DON'T auto-close because we want manual meter readings
+	var bizType common.BusinessType
+	s.db.Table("businesses").Select("type").Where("id = ?", businessID).Scan(&bizType)
+
+	if bizType == common.TypeLPGStation || bizType == common.TypeFuelStation {
+		return
+	}
+
 	now := time.Now()
 	// Get start of today in local time
 	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())

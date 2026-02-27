@@ -97,6 +97,12 @@ type SalesReport struct {
 	TotalExpenses                float64 `json:"total_expenses"`
 	NetProfit                    float64 `json:"net_profit"`
 	AverageSale                  float64 `json:"average_sale"`
+	// Bulk Inventory Metrics (LPG)
+	OpeningStock                 float64 `json:"opening_stock,omitempty"`
+	ClosingStock                 float64 `json:"closing_stock,omitempty"`
+	StockPurchased               float64 `json:"stock_purchased,omitempty"`
+	StockSold                    float64 `json:"stock_sold,omitempty"`
+	StockVariance                float64 `json:"stock_variance,omitempty"`
 }
 
 // SaleSummary stores daily aggregates for data older than the retention period

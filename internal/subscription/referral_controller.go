@@ -3,12 +3,32 @@ package subscription
 import (
 	"crypto/rand"
 	"encoding/hex"
+	"fmt"
+	"pos-fiber-app/internal/email"
 	"pos-fiber-app/internal/types"
 	"time"
 
 	"github.com/gofiber/fiber/v2"
+	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"
 )
+
+// InternalUser is a local definition to avoid import cycle with internal/user package
+type InternalUser struct {
+	ID        uint      `gorm:"primaryKey" json:"id"`
+	FirstName string    `json:"first_name"`
+	LastName  string    `json:"last_name"`
+	Email     string    `gorm:"uniqueIndex" json:"email"`
+	Password  string    `json:"-"`
+	Active    bool      `json:"active"`
+	Role      string    `json:"role"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
+// TableName overrides the table name for InternalUser
+func (InternalUser) TableName() string {
+	return "users"
+}
 
 // CreateReferralCodeHandler allows an installer to generate a unique code
 func CreateReferralCodeHandler(db *gorm.DB) fiber.Handler {
@@ -329,5 +349,276 @@ func GetPayoutRequestsHandler(db *gorm.DB) fiber.Handler {
 		var payouts []PayoutRequest
 		db.Where("installer_id = ?", userCtx.UserID).Order("created_at DESC").Find(&payouts)
 		return c.JSON(payouts)
+	}
+}
+
+// AdminListAffiliatesHandler returns all users with role INSTALLER
+func AdminListAffiliatesHandler(db *gorm.DB) fiber.Handler {
+	return func(c *fiber.Ctx) error {
+		var followers []InternalUser
+		if err := db.Where("role = ?", "INSTALLER").Find(&followers).Error; err != nil {
+			return err
+		}
+
+		// Map to a cleaner response with referral codes
+		type AffiliateResp struct {
+			InternalUser
+			ReferralCodes []ReferralCode `json:"referral_codes"`
+		}
+
+		var resp []AffiliateResp
+		for _, u := range followers {
+			var codes []ReferralCode
+			db.Where("installer_id = ?", u.ID).Find(&codes)
+			resp = append(resp, AffiliateResp{
+				InternalUser:  u,
+				ReferralCodes: codes,
+			})
+		}
+
+		return c.JSON(resp)
+	}
+}
+
+// AdminCreateInfluencerHandler creates a new installer user, referral code, and matching promo code
+func AdminCreateInfluencerHandler(db *gorm.DB) fiber.Handler {
+	return func(c *fiber.Ctx) error {
+		var req struct {
+			FirstName             string  `json:"first_name" validate:"required"`
+			LastName              string  `json:"last_name" validate:"required"`
+			Email                 string  `json:"email" validate:"required,email"`
+			OnlineName            string  `json:"online_name" validate:"required"` // e.g. TAOOMA
+			CommissionRate        float64 `json:"commission_rate"`                 // onboarding %
+			RenewalCommissionRate float64 `json:"renewal_commission_rate"`         // renewal %
+			DiscountPercentage    float64 `json:"discount_percentage"`             // fan discount %
+		}
+
+		if err := c.BodyParser(&req); err != nil {
+			return c.Status(400).JSON(fiber.Map{"error": "Invalid request"})
+		}
+
+		// Defaults
+		if req.CommissionRate <= 0 {
+			req.CommissionRate = 20.0
+		}
+		if req.RenewalCommissionRate <= 0 {
+			req.RenewalCommissionRate = 10.0
+		}
+		if req.DiscountPercentage <= 0 {
+			req.DiscountPercentage = 20.0
+		}
+
+		// Generate a random password
+		bytes := make([]byte, 4)
+		rand.Read(bytes)
+		tempPassword := hex.EncodeToString(bytes) // e.g. "a1b2c3d4"
+
+		// Use bcrypt directly to avoid import cycle
+		hashedBytes, _ := bcrypt.GenerateFromPassword([]byte(tempPassword), 14)
+		hashed := string(hashedBytes)
+
+		tx := db.Begin()
+
+		// 1. Create User
+		u := InternalUser{
+			FirstName: req.FirstName,
+			LastName:  req.LastName,
+			Email:     req.Email,
+			Password:  hashed,
+			Role:      "INSTALLER",
+			Active:    true,
+		}
+
+		if err := tx.Create(&u).Error; err != nil {
+			tx.Rollback()
+			return c.Status(400).JSON(fiber.Map{"error": "Email already exists or invalid"})
+		}
+
+		// 2. Create Referral Code
+		ref := ReferralCode{
+			Code:                     req.OnlineName,
+			InstallerID:              u.ID,
+			OnboardingCommissionRate: req.CommissionRate,
+			RenewalCommissionRate:    req.RenewalCommissionRate,
+			IsActive:                 true,
+		}
+		if err := tx.Create(&ref).Error; err != nil {
+			tx.Rollback()
+			return c.Status(400).JSON(fiber.Map{"error": "Online name (Code) already taken"})
+		}
+
+		// 3. Create Matching Promo Code (Discount for fans)
+		promo := PromoCode{
+			Code:               req.OnlineName,
+			DiscountPercentage: req.DiscountPercentage,
+			MaxUses:            0,                            // Unlimited
+			ExpiryDate:         time.Now().AddDate(10, 0, 0), // 10 years
+			Active:             true,
+		}
+		if err := tx.Create(&promo).Error; err != nil {
+			tx.Rollback()
+			return c.Status(400).JSON(fiber.Map{"error": "Failed to create matching promo code"})
+		}
+
+		tx.Commit()
+
+		// 4. Send Email (Fire and forget)
+		go func() {
+			sender := email.NewSender(email.LoadConfig())
+			subject := "Your Influencer/Affiliate Account Credentials"
+			body := fmt.Sprintf(`
+				<h1>Welcome to AB-POS Platform</h1>
+				<p>Hello %s, your influencer account has been created.</p>
+				<p><b>Your Personal Referral & Promo Code:</b> %s</p>
+				<p>Businesses using this code get %.0f%% discount, and you get %.0f%% commission.</p>
+				<hr/>
+				<p><b>Login Credentials:</b></p>
+				<p>Email: %s</p>
+				<p>Password: %s</p>
+				<p>Login here: <a href="https://app.ab-pos.com/auth/login">Affiliate Portal</a></p>
+			`, req.FirstName, req.OnlineName, req.DiscountPercentage, req.CommissionRate, req.Email, tempPassword)
+			sender.SendCustomEmail(req.Email, subject, body)
+		}()
+
+		return c.Status(201).JSON(fiber.Map{
+			"message":       "Influencer created successfully",
+			"user_id":       u.ID,
+			"code":          req.OnlineName,
+			"temp_password": tempPassword,
+		})
+	}
+}
+
+// AdminUpdateAffiliateHandler updates influencer profile and their codes
+func AdminUpdateAffiliateHandler(db *gorm.DB) fiber.Handler {
+	return func(c *fiber.Ctx) error {
+		id := c.Params("id")
+		var req struct {
+			FirstName             string  `json:"first_name"`
+			LastName              string  `json:"last_name"`
+			Active                *bool   `json:"active"`
+			CommissionRate        float64 `json:"commission_rate"`
+			RenewalCommissionRate float64 `json:"renewal_commission_rate"`
+			DiscountPercentage    float64 `json:"discount_percentage"`
+		}
+
+		if err := c.BodyParser(&req); err != nil {
+			return c.Status(400).JSON(fiber.Map{"error": "Invalid request"})
+		}
+
+		tx := db.Begin()
+
+		// 1. Update User
+		var u InternalUser
+		if err := tx.First(&u, id).Error; err != nil {
+			tx.Rollback()
+			return c.Status(404).JSON(fiber.Map{"error": "Influencer not found"})
+		}
+
+		if req.FirstName != "" {
+			u.FirstName = req.FirstName
+		}
+		if req.LastName != "" {
+			u.LastName = req.LastName
+		}
+		if req.Active != nil {
+			u.Active = *req.Active
+		}
+
+		tx.Save(&u)
+
+		// 2. Update Referral Code & Promo Code
+		var ref ReferralCode
+		if err := tx.Where("installer_id = ?", u.ID).First(&ref).Error; err == nil {
+			if req.CommissionRate > 0 {
+				ref.OnboardingCommissionRate = req.CommissionRate
+			}
+			if req.RenewalCommissionRate > 0 {
+				ref.RenewalCommissionRate = req.RenewalCommissionRate
+			}
+			if req.Active != nil {
+				ref.IsActive = *req.Active
+			}
+			tx.Save(&ref)
+
+			// Promo Code (matching the same code string)
+			var promo PromoCode
+			if err := tx.Where("code = ?", ref.Code).First(&promo).Error; err == nil {
+				if req.DiscountPercentage > 0 {
+					promo.DiscountPercentage = req.DiscountPercentage
+				}
+				if req.Active != nil {
+					promo.Active = *req.Active
+				}
+				tx.Save(&promo)
+			}
+		}
+
+		tx.Commit()
+		return c.JSON(fiber.Map{"message": "Influencer updated successfully"})
+	}
+}
+
+// AdminDeleteAffiliateHandler wipes an influencer and their codes (or deactivates)
+func AdminDeleteAffiliateHandler(db *gorm.DB) fiber.Handler {
+	return func(c *fiber.Ctx) error {
+		id := c.Params("id")
+		tx := db.Begin()
+
+		var u InternalUser
+		if err := tx.First(&u, id).Error; err != nil {
+			tx.Rollback()
+			return c.Status(404).JSON(fiber.Map{"error": "Influencer not found"})
+		}
+
+		// Delete their marks
+		tx.Where("installer_id = ?", u.ID).Delete(&ReferralCode{})
+
+		// Note: We don't delete PromoCodes as businesses might already be using them
+		// But we can deactivate them
+		var refs []ReferralCode
+		db.Where("installer_id = ?", u.ID).Find(&refs)
+		for _, r := range refs {
+			tx.Model(&PromoCode{}).Where("code = ?", r.Code).Update("active", false)
+		}
+
+		tx.Delete(&u)
+		tx.Commit()
+
+		return c.JSON(fiber.Map{"message": "Influencer deleted and codes deactivated"})
+	}
+}
+
+// AdminGetAffiliateStatsHandler returns performance metrics for an influencer
+func AdminGetAffiliateStatsHandler(db *gorm.DB) fiber.Handler {
+	return func(c *fiber.Ctx) error {
+		id := c.Params("id")
+
+		var stats struct {
+			TotalFans      int64           `json:"total_fans"`
+			TotalEarned    float64         `json:"total_earned"`
+			PendingPayout  float64         `json:"pending_payout"`
+			PayoutHistory  []PayoutRequest `json:"payout_history"`
+			RecentOnboards []struct {
+				ID        uint      `json:"id"`
+				Name      string    `json:"name"`
+				CreatedAt time.Time `json:"onboarded_at"`
+			} `json:"recent_onboards"`
+		}
+
+		// 1. Total Fans (Businesses linked)
+		db.Table("businesses").Where("installer_id = ?", id).Count(&stats.TotalFans)
+
+		// 2. Earnings
+		db.Model(&CommissionRecord{}).Where("installer_id = ? AND status = ?", id, CommissionPaid).Select("SUM(amount)").Scan(&stats.TotalEarned)
+		db.Model(&CommissionRecord{}).Where("installer_id = ? AND status = ?", id, CommissionPending).Select("SUM(amount)").Scan(&stats.PendingPayout)
+
+		// 3. Payouts
+		db.Where("installer_id = ?", id).Order("created_at DESC").Find(&stats.PayoutHistory)
+
+		// 4. Recent Businesses
+		db.Table("businesses").Where("installer_id = ?", id).Order("created_at DESC").Limit(5).Scan(&stats.RecentOnboards)
+
+		return c.JSON(stats)
 	}
 }

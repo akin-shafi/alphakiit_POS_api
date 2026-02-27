@@ -10,6 +10,7 @@ import (
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cors"
 	"github.com/gofiber/fiber/v2/middleware/limiter"
+	"github.com/gofiber/fiber/v2/middleware/recover"
 
 	// NEW: Modern Swaggo for Fiber v2/v3 + OpenAPI 3
 
@@ -75,10 +76,17 @@ func main() {
 	config.LoadEnv()
 
 	db := database.ConnectDB()
-	if err := database.RunMigrations(db); err != nil {
-		log.Fatalf("Failed to run migrations: %v", err)
-	}
+	// if err := database.RunMigrations(db); err != nil {
+	// 	log.Fatalf("Failed to run migrations: %v", err)
+	// }
+	// tutorial.Migrate(db)       // Ensure tutorials table exists
 	// tutorial.SeedTutorials(db) // Seed tutorial content (after migrations)
+	// subscription.Migrate(db)   // Ensure subscription/training resources tables exist
+	// if err := seed.SeedInstallerData(db); err != nil {
+	// 	log.Printf("[SEED ERROR] Failed to seed installer data: %v", err)
+	// } else {
+	// 	log.Println("[SEED] Installer data seeded successfully")
+	// }
 
 	// === Start Background Tasks ===
 	archiver.StartDataLifecycleManager(db)
@@ -100,6 +108,9 @@ func main() {
 			})
 		},
 	})
+
+	// === Global Recover (Prevents crashes) ===
+	app.Use(recover.New())
 
 	// === Global Rate Limiter ===
 	app.Use(limiter.New(limiter.Config{
@@ -182,6 +193,8 @@ func main() {
 		middleware.CurrentBusinessMiddleware(),
 		middleware.SubscriptionMiddleware(db),
 	)
+
+	business.RegisterDashboardBusinessRoutes(businessScoped, db)
 
 	category.RegisterCategoryRoutes(businessScoped, db)
 	product.RegisterProductRoutes(businessScoped, db)

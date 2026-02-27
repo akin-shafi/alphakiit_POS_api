@@ -12,6 +12,7 @@ type InventoryRound struct {
 	ProductID       uint           `gorm:"index" json:"product_id"`
 	TotalVolume     float64        `gorm:"type:decimal(12,3)" json:"total_volume"`
 	RemainingVolume float64        `gorm:"type:decimal(12,3)" json:"remaining_volume"`
+	PurchaseCost    float64        `gorm:"type:decimal(12,2)" json:"purchase_cost"`
 	Status          string         `gorm:"type:varchar(20);default:'OPEN'" json:"status"` // OPEN, CLOSED
 	StartDate       time.Time      `json:"start_date"`
 	ClosedAt        *time.Time     `json:"closed_at,omitempty"`

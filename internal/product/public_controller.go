@@ -1,6 +1,7 @@
 package product
 
 import (
+	"errors"
 	"pos-fiber-app/internal/category"
 
 	"github.com/gofiber/fiber/v2"
@@ -24,8 +25,8 @@ func GetPublicMenuBySlugHandler(db *gorm.DB) fiber.Handler {
 
 		// 1. Find Business
 		var biz map[string]interface{}
-		if err := db.Table("businesses").Where("slug = ?", slug).First(&biz).Error; err != nil {
-			if err == gorm.ErrRecordNotFound {
+		if err := db.Table("businesses").Where("slug = ?", slug).Take(&biz).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
 				return fiber.NewError(fiber.StatusNotFound, "business not found")
 			}
 			return fiber.ErrInternalServerError

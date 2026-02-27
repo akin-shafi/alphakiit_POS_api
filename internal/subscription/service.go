@@ -2,6 +2,7 @@ package subscription
 
 import (
 	"errors"
+	"pos-fiber-app/internal/common"
 	"time"
 
 	"gorm.io/gorm"
@@ -39,9 +40,10 @@ func HandleCommission(db *gorm.DB, sub *Subscription) error {
 
 	// 1. Get the business to find the installer and check activation status
 	var biz struct {
-		ID             uint
-		InstallerID    *uint
-		TrialActivated bool
+		ID               uint
+		InstallerID      *uint
+		TrialActivated   bool
+		DefaultPromoCode string
 	}
 	if err := db.Table("businesses").Where("id = ?", sub.BusinessID).First(&biz).Error; err != nil {
 		return err
@@ -49,6 +51,19 @@ func HandleCommission(db *gorm.DB, sub *Subscription) error {
 
 	if biz.InstallerID == nil {
 		return nil // No installer associated
+	}
+
+	// Try to find specific commission rates from the ReferralCode
+	if biz.DefaultPromoCode != "" {
+		var refCode ReferralCode
+		if err := db.Where("code = ? AND installer_id = ?", biz.DefaultPromoCode, *biz.InstallerID).First(&refCode).Error; err == nil {
+			if refCode.OnboardingCommissionRate > 0 {
+				settings.OnboardingRate = refCode.OnboardingCommissionRate
+			}
+			if refCode.RenewalCommissionRate > 0 {
+				settings.RenewalRate = refCode.RenewalCommissionRate
+			}
+		}
 	}
 
 	// Installer commission is ONLY valid for Activated Trials.
@@ -130,6 +145,22 @@ func GetSubscriptionStatus(db *gorm.DB, businessID uint) (*Subscription, error) 
 	return &sub, err
 }
 
+// GetProductLimit returns the maximum allowed products for a business
+func GetProductLimit(db *gorm.DB, businessID uint) int {
+	sub, err := GetSubscriptionStatus(db, businessID)
+	if err != nil || sub == nil {
+		return 10 // default very low limit for unsubscribed
+	}
+
+	for _, p := range AvailablePlans {
+		if p.Type == sub.PlanType {
+			return p.ProductLimit
+		}
+	}
+
+	return 10 // fallback
+}
+
 // GetRemainingDays calculates the number of full days remaining until expiry
 func GetRemainingDays(expiry time.Time) int {
 	now := time.Now()
@@ -154,6 +185,23 @@ func CreateSubscription(db *gorm.DB, businessID uint, planType PlanType, payment
 
 	if plan == nil {
 		return nil, errors.New("invalid plan type")
+	}
+
+	// Eligibility Check
+	if len(plan.AllowedBusinessTypes) > 0 {
+		var bizType common.BusinessType
+		db.Table("businesses").Select("type").Where("id = ?", businessID).Scan(&bizType)
+
+		allowed := false
+		for _, t := range plan.AllowedBusinessTypes {
+			if t == bizType {
+				allowed = true
+				break
+			}
+		}
+		if !allowed {
+			return nil, errors.New("business type not eligible for this plan")
+		}
 	}
 
 	now := time.Now()

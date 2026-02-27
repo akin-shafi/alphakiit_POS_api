@@ -8,8 +8,10 @@ type SampleProduct struct {
 	Name      string
 	Price     float64
 	Cost      float64
-	Stock     int
-	SKUPrefix string
+	Stock         int
+	SKUPrefix     string
+	TrackByRound  bool
+	UnitOfMeasure string
 }
 
 type SampleCategory struct {
@@ -200,15 +202,15 @@ var sampleData = map[common.BusinessType][]SampleCategory{
 		{
 			Name: "Bulk Gas Refills",
 			Products: []SampleProduct{
-				{Name: "LPG Refill 0.5kg",   Price: 600,   Cost: 400,   Stock: 100, SKUPrefix: "GAS-REF"},
-				{Name: "LPG Refill 1kg",     Price: 1200,  Cost: 800,   Stock: 100, SKUPrefix: "GAS-REF"},
-				{Name: "LPG Refill 1.5kg",   Price: 1800,  Cost: 1200,  Stock: 100, SKUPrefix: "GAS-REF"},
-				{Name: "LPG Refill 3kg",     Price: 3600,  Cost: 2400,  Stock: 50,  SKUPrefix: "GAS-REF"},
-				{Name: "LPG Refill 5kg",     Price: 6000,  Cost: 4000,  Stock: 30,  SKUPrefix: "GAS-REF"},
-				{Name: "LPG Refill 6kg",     Price: 7200,  Cost: 4800,  Stock: 20,  SKUPrefix: "GAS-REF"},
-				{Name: "LPG Refill 12.5kg",  Price: 15000, Cost: 10000, Stock: 8,   SKUPrefix: "GAS-REF"},
-				{Name: "LPG Refill 25kg",    Price: 30000, Cost: 21000, Stock: 4,   SKUPrefix: "GAS-REF"},
-				{Name: "LPG Refill 50kg",    Price: 60000, Cost: 42000, Stock: 2,   SKUPrefix: "GAS-REF"},
+				{Name: "LPG Gas (Bulk)", Price: 12, Cost: 8, Stock: 50000, SKUPrefix: "GAS", TrackByRound: true, UnitOfMeasure: "kg"},
+			},
+		},
+		{
+			Name: "Gas Cylinders",
+			Products: []SampleProduct{
+				{Name: "Empty 3kg Cylinder", Price: 15000, Cost: 11000, Stock: 10, SKUPrefix: "CYL"},
+				{Name: "Empty 6kg Cylinder", Price: 18000, Cost: 14000, Stock: 10, SKUPrefix: "CYL"},
+				{Name: "Empty 12.5kg Cylinder", Price: 25000, Cost: 19000, Stock: 5, SKUPrefix: "CYL"},
 			},
 		},
 

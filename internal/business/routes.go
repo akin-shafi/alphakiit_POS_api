@@ -12,9 +12,14 @@ func RegisterBusinessRoutes(r fiber.Router, db *gorm.DB) {
 	r.Get("/businesses/:id", GetHandler(db))
 	r.Put("/businesses/:id", UpdateHandler(db))
 	r.Delete("/businesses/:id", DeleteHandler(db))
-	r.Get("/trial-checklist", GetTrialChecklistHandler(db))
 
-	// Google Drive Connect
+	// Move these to dashboard/business scoped routes
+	// r.Get("/trial-checklist", GetTrialChecklistHandler(db))
+}
+
+func RegisterDashboardBusinessRoutes(r fiber.Router, db *gorm.DB) {
+	r.Get("/trial-checklist", GetTrialChecklistHandler(db))
+	// Google Drive Connect (Dashboard context)
 	r.Get("/google/connect", ConnectGoogleDriveHandler(db))
 }
 
