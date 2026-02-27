@@ -406,3 +406,54 @@ func (ac *AdminController) RenewSubscription(c *fiber.Ctx) error {
 
 	return c.JSON(newSub)
 }
+
+// Global Promotion Management
+
+func (ac *AdminController) GetPromotions(c *fiber.Ctx) error {
+	var promos []GlobalPromotion
+	ac.db.Order("created_at DESC").Find(&promos)
+	return c.JSON(promos)
+}
+
+func (ac *AdminController) CreatePromotion(c *fiber.Ctx) error {
+	var promo GlobalPromotion
+	if err := c.BodyParser(&promo); err != nil {
+		return c.Status(400).JSON(fiber.Map{"error": "Invalid body"})
+	}
+	ac.db.Create(&promo)
+	return c.JSON(promo)
+}
+
+func (ac *AdminController) UpdatePromotion(c *fiber.Ctx) error {
+	id := c.Params("id")
+	var promo GlobalPromotion
+	if err := ac.db.First(&promo, id).Error; err != nil {
+		return c.Status(404).JSON(fiber.Map{"error": "Promotion not found"})
+	}
+
+	if err := c.BodyParser(&promo); err != nil {
+		return c.Status(400).JSON(fiber.Map{"error": "Invalid body"})
+	}
+
+	ac.db.Save(&promo)
+	return c.JSON(promo)
+}
+
+func (ac *AdminController) GetPromoUsage(c *fiber.Ctx) error {
+	var usage []struct {
+		BusinessName string    `json:"business_name"`
+		TenantID     string    `json:"tenant_id"`
+		PlanType     string    `json:"plan_type"`
+		AmountPaid   float64   `json:"amount_paid"`
+		CreatedAt    time.Time `json:"created_at"`
+	}
+
+	ac.db.Table("subscriptions").
+		Select("businesses.name as business_name, businesses.tenant_id, subscriptions.plan_type, subscriptions.amount_paid, subscriptions.created_at").
+		Joins("join businesses on businesses.id = subscriptions.business_id").
+		Where("subscriptions.launch_promo_applied = ?", true).
+		Order("subscriptions.created_at DESC").
+		Scan(&usage)
+
+	return c.JSON(usage)
+}

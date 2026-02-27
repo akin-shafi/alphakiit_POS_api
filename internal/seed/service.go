@@ -110,6 +110,24 @@ func SeedInstallerData(db *gorm.DB) error {
 			}
 		}
 
+		// 4. Global Promotion (March 2026)
+		var promoCount int64
+		tx.Model(&subscription.GlobalPromotion{}).Count(&promoCount)
+		if promoCount == 0 {
+			startDate := time.Date(2026, 2, 1, 0, 0, 0, 0, time.UTC)
+			endDate := time.Date(2026, 3, 31, 23, 59, 59, 0, time.UTC)
+			promo := subscription.GlobalPromotion{
+				Name:              "BETADAY Launch Promotion 2026",
+				Description:       "Limited time: 20% off Quarterly and 40% off Annual plans.",
+				StartDate:         startDate,
+				EndDate:           endDate,
+				QuarterlyDiscount: 20.0,
+				AnnualDiscount:    40.0,
+				IsActive:          true,
+			}
+			tx.Create(&promo)
+		}
+
 		return nil
 	})
 }

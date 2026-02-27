@@ -184,6 +184,19 @@ type PaymentMethod struct {
 	UpdatedAt         time.Time `json:"updated_at"`
 }
 
+type GlobalPromotion struct {
+	ID                uint      `gorm:"primaryKey" json:"id"`
+	Name              string    `gorm:"type:varchar(255);not null" json:"name"`
+	Description       string    `json:"description"`
+	StartDate         time.Time `json:"start_date"`
+	EndDate           time.Time `json:"end_date"`
+	QuarterlyDiscount float64   `json:"quarterly_discount"`
+	AnnualDiscount    float64   `json:"annual_discount"`
+	IsActive          bool      `gorm:"default:true" json:"is_active"`
+	CreatedAt         time.Time `json:"created_at"`
+	UpdatedAt         time.Time `json:"updated_at"`
+}
+
 func Migrate(db *gorm.DB) error {
 	return db.AutoMigrate(
 		&Subscription{},
@@ -195,5 +208,6 @@ func Migrate(db *gorm.DB) error {
 		&TrainingResource{},
 		&PayoutRequest{},
 		&PaymentMethod{},
+		&GlobalPromotion{},
 	)
 }

@@ -42,4 +42,10 @@ func RegisterAdminRoutes(router fiber.Router, db *gorm.DB) {
 	adminGroup.Post("/training-resources", AdminCreateTrainingResourceHandler(db))
 	adminGroup.Put("/training-resources/:id", AdminUpdateTrainingResourceHandler(db))
 	adminGroup.Delete("/training-resources/:id", AdminDeleteTrainingResourceHandler(db))
+
+	// Global Promotions
+	adminGroup.Get("/promotions", ac.GetPromotions)
+	adminGroup.Post("/promotions", ac.CreatePromotion)
+	adminGroup.Put("/promotions/:id", ac.UpdatePromotion)
+	adminGroup.Get("/promotions/usage", ac.GetPromoUsage)
 }

@@ -174,23 +174,25 @@ func GetRemainingDays(expiry time.Time) int {
 	return days
 }
 
-// CheckLaunchOfferEligibility returns whether a plan is eligible for the launch discount
-// Logic: March 1 - March 14, 2026. Quarterly/Annual Plans.
-func CheckLaunchOfferEligibility(planType PlanType) (bool, float64) {
+// CheckLaunchOfferEligibility returns whether a plan is eligible for an active global promotion
+func CheckLaunchOfferEligibility(db *gorm.DB, planType PlanType) (bool, float64) {
+	var promo GlobalPromotion
 	now := time.Now()
-	// Promo Window: March 1, 2026 to March 14, 2026
-	startDate := time.Date(2026, 3, 1, 0, 0, 0, 0, time.UTC)
-	endDate := time.Date(2026, 3, 15, 0, 0, 0, 0, time.UTC) // Includes March 14
 
-	if now.Before(startDate) || now.After(endDate) {
+	err := db.Where("is_active = true AND ? BETWEEN start_date AND end_date", now).First(&promo).Error
+	if err != nil {
 		return false, 0
 	}
 
 	switch planType {
 	case PlanQuarterly, PlanServiceQuarterly:
-		return true, 20.0
+		if promo.QuarterlyDiscount > 0 {
+			return true, promo.QuarterlyDiscount
+		}
 	case PlanAnnual, PlanServiceAnnual:
-		return true, 40.0
+		if promo.AnnualDiscount > 0 {
+			return true, promo.AnnualDiscount
+		}
 	}
 
 	return false, 0

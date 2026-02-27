@@ -385,7 +385,7 @@ func (sc *SubscriptionController) Subscribe(c *fiber.Ctx) error {
 	launchDiscountAmount := 0.0
 
 	// AUTO-APPLY LAUNCH OFFER IF ELIGIBLE
-	if eligible, discountPercent := CheckLaunchOfferEligibility(req.PlanType); eligible {
+	if eligible, discountPercent := CheckLaunchOfferEligibility(sc.db, req.PlanType); eligible {
 		launchDiscountAmount = (discountPercent / 100) * totalPrice
 		totalPrice -= launchDiscountAmount
 		launchDiscountApplied = true
@@ -604,7 +604,7 @@ func (sc *SubscriptionController) GetLaunchOfferEligibility(c *fiber.Ctx) error 
 	businessID := c.Locals("business_id").(uint)
 	planType := PlanType(c.Query("plan_type"))
 
-	eligible, discount := CheckLaunchOfferEligibility(planType)
+	eligible, discount := CheckLaunchOfferEligibility(sc.db, planType)
 	if !eligible {
 		return c.JSON(fiber.Map{"eligible": false})
 	}
