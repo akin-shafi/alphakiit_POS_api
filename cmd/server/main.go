@@ -76,9 +76,9 @@ func main() {
 	config.LoadEnv()
 
 	db := database.ConnectDB()
-	// if err := database.RunMigrations(db); err != nil {
-	// 	log.Fatalf("Failed to run migrations: %v", err)
-	// }
+	if err := database.RunMigrations(db); err != nil {
+		log.Fatalf("Failed to run migrations: %v", err)
+	}
 	// tutorial.Migrate(db)       // Ensure tutorials table exists
 	// tutorial.SeedTutorials(db) // Seed tutorial content (after migrations)
 	subscription.Migrate(db) // Ensure subscription/training resources tables exist

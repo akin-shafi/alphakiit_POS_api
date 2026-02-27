@@ -829,3 +829,13 @@ func validateModuleDependencies(requested []ModuleType, active map[ModuleType]bo
 	}
 	return nil
 }
+
+func (sc *SubscriptionController) GetActivePromotion(c *fiber.Ctx) error {
+	var promo GlobalPromotion
+	now := time.Now()
+	err := sc.db.Where("is_active = ? AND start_date <= ? AND end_date >= ?", true, now, now).First(&promo).Error
+	if err != nil {
+		return c.Status(404).JSON(fiber.Map{"error": "No active promotion"})
+	}
+	return c.JSON(promo)
+}

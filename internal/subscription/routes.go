@@ -33,4 +33,5 @@ func RegisterPublicRoutes(router fiber.Router, db *gorm.DB) {
 	router.Get("/referrals/settings", GetCommissionSettingsHandler(db))
 	sc := NewSubscriptionController(db)
 	router.Get("/pricing", sc.GetPricing)
+	router.Get("/active-promotion", sc.GetActivePromotion)
 }
