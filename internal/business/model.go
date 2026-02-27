@@ -44,6 +44,7 @@ type Business struct {
 	VATRate                float64    `gorm:"default:7.5" json:"vat_rate"`
 	TaxNumber              string     `gorm:"size:50" json:"tax_number"`
 	DefaultPromoCode       string     `gorm:"size:50" json:"default_promo_code,omitempty"`
+	LaunchOfferSent        bool       `gorm:"default:false" json:"launch_offer_sent"`
 
 	// Trial Activation System
 	TrialActivated          bool       `gorm:"default:false" json:"trial_activated"`

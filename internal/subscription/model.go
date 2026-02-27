@@ -57,6 +57,8 @@ type Subscription struct {
 	PaymentMethod        string             `json:"payment_method"`
 	TransactionReference string             `json:"transaction_reference"`
 	AmountPaid           float64            `gorm:"type:decimal(12,2)" json:"amount_paid"`
+	LaunchDiscount       float64            `gorm:"type:decimal(12,2)" json:"launch_discount"`
+	LaunchPromoApplied   bool               `gorm:"default:false" json:"launch_promo_applied"`
 	Description          string             `json:"description"`
 	CreatedAt            time.Time          `json:"created_at"`
 	UpdatedAt            time.Time          `json:"updated_at"`

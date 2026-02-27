@@ -42,6 +42,9 @@ type EmailData struct {
 	Expenses  string
 	NetProfit string
 	Profit    string // Gross Profit
+	// Launch Offer Data
+	Discount string
+	PlanName string
 }
 
 type EmailInventoryItem struct {

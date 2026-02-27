@@ -13,6 +13,7 @@ func RegisterRoutes(router fiber.Router, db *gorm.DB) {
 	router.Get("/status", sc.GetStatus)
 	router.Get("/history", sc.GetHistory)
 	router.Get("/promo/validate", sc.ValidatePromoCode)
+	router.Get("/promo/launch-eligibility", sc.GetLaunchOfferEligibility)
 	router.Post("/subscribe", sc.Subscribe)
 	router.Get("/cards", sc.GetSavedCards)
 	router.Post("/charge-saved", sc.ChargeSavedCard)

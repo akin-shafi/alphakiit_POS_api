@@ -5,6 +5,7 @@ import (
 	"pos-fiber-app/pkg/paystack"
 
 	"pos-fiber-app/internal/common"
+	"pos-fiber-app/internal/email"
 	"time"
 
 	"github.com/gofiber/fiber/v2"
@@ -14,12 +15,14 @@ import (
 type SubscriptionController struct {
 	db       *gorm.DB
 	paystack *paystack.PaystackClient
+	sender   *email.Sender
 }
 
 func NewSubscriptionController(db *gorm.DB) *SubscriptionController {
 	return &SubscriptionController{
 		db:       db,
 		paystack: paystack.NewClient(),
+		sender:   email.NewSender(email.LoadConfig()),
 	}
 }
 
@@ -378,7 +381,16 @@ func (sc *SubscriptionController) Subscribe(c *fiber.Ctx) error {
 
 	// Calculate expected price with optional discount
 	promoCode := c.Query("promo_code")
-	if promoCode != "" {
+	launchDiscountApplied := false
+	launchDiscountAmount := 0.0
+
+	// AUTO-APPLY LAUNCH OFFER IF ELIGIBLE
+	if eligible, discountPercent := CheckLaunchOfferEligibility(req.PlanType); eligible {
+		launchDiscountAmount = (discountPercent / 100) * totalPrice
+		totalPrice -= launchDiscountAmount
+		launchDiscountApplied = true
+		description += fmt.Sprintf(" (Launch Offer: -%.0f%%)", discountPercent)
+	} else if promoCode != "" {
 		var promo PromoCode
 		if err := sc.db.Where("code = ? AND active = true", promoCode).First(&promo).Error; err == nil {
 			// Validate promo
@@ -417,6 +429,8 @@ func (sc *SubscriptionController) Subscribe(c *fiber.Ctx) error {
 			PaymentMethod:        "PAYSTACK",
 			TransactionReference: req.Reference,
 			AmountPaid:           verification.Data.Amount / 100,
+			LaunchDiscount:       launchDiscountAmount,
+			LaunchPromoApplied:   launchDiscountApplied,
 			Description:          description,
 		}
 		sc.db.Create(sub)
@@ -434,6 +448,8 @@ func (sc *SubscriptionController) Subscribe(c *fiber.Ctx) error {
 			PaymentMethod:        "PAYSTACK",
 			TransactionReference: req.Reference,
 			AmountPaid:           verification.Data.Amount / 100,
+			LaunchDiscount:       launchDiscountAmount,
+			LaunchPromoApplied:   launchDiscountApplied,
 			Description:          description,
 		}
 		sc.db.Create(sub)
@@ -449,8 +465,12 @@ func (sc *SubscriptionController) Subscribe(c *fiber.Ctx) error {
 		if err != nil {
 			return c.Status(500).JSON(fiber.Map{"error": err.Error()})
 		}
-		// Update description for CreateSubscription result
-		sc.db.Model(sub).Update("description", description)
+		// Update description and discount for CreateSubscription result
+		sc.db.Model(sub).Updates(map[string]interface{}{
+			"description":          description,
+			"launch_discount":      launchDiscountAmount,
+			"launch_promo_applied": launchDiscountApplied,
+		})
 	}
 
 	// 4. Activate Modules
@@ -577,6 +597,54 @@ func (sc *SubscriptionController) GetSavedCards(c *fiber.Ctx) error {
 		return c.Status(500).JSON(fiber.Map{"error": "Could not fetch saved cards"})
 	}
 	return c.JSON(cards)
+}
+
+// GetLaunchOfferEligibility checks if the current business/plan is eligible for the launch offer
+func (sc *SubscriptionController) GetLaunchOfferEligibility(c *fiber.Ctx) error {
+	businessID := c.Locals("business_id").(uint)
+	planType := PlanType(c.Query("plan_type"))
+
+	eligible, discount := CheckLaunchOfferEligibility(planType)
+	if !eligible {
+		return c.JSON(fiber.Map{"eligible": false})
+	}
+
+	// Logic: Send automated email if not already sent for this business
+	// We can check if they've received it or just send it (throttled/once)
+	// For simplicity, let's check a field in business or just go for it if they choose it.
+
+	var biz struct {
+		Name            string
+		ContactEmail    string
+		LaunchOfferSent bool
+	}
+	sc.db.Table("businesses").Where("id = ?", businessID).First(&biz)
+
+	if !biz.LaunchOfferSent && biz.ContactEmail != "" {
+		// Prepare data for email
+		emailData := email.EmailData{
+			Name:         biz.Name,
+			BusinessName: biz.Name,
+			Discount:     fmt.Sprintf("%.0f%%", discount),
+			PlanName:     string(planType),
+		}
+
+		// Use a Goroutine to send email without blocking the response
+		go func() {
+			err := sc.sender.SendCustomEmail(biz.ContactEmail, "🎉 Your Launch Offer Has Been Activated",
+				fmt.Sprintf("Hello %s,<br/><br/>You qualify for our March Launch Offer.<br/><br/>%s Plan: %s discount applied.<br/><br/>Your savings will be automatically applied at checkout.<br/>Offer expires March 14.",
+					biz.Name, planType, emailData.Discount))
+			if err == nil {
+				sc.db.Table("businesses").Where("id = ?", businessID).Update("launch_offer_sent", true)
+			}
+		}()
+	}
+
+	return c.JSON(fiber.Map{
+		"eligible":            true,
+		"discount_percentage": discount,
+		"message":             "Launch offer activated and savings applied.",
+	})
 }
 
 // DeleteSavedCard removes a saved payment method
