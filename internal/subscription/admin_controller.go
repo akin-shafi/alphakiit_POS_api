@@ -410,7 +410,7 @@ func (ac *AdminController) RenewSubscription(c *fiber.Ctx) error {
 // Global Promotion Management
 
 func (ac *AdminController) GetPromotions(c *fiber.Ctx) error {
-	var promos []GlobalPromotion
+	promos := []GlobalPromotion{}
 	ac.db.Order("created_at DESC").Find(&promos)
 	return c.JSON(promos)
 }
@@ -440,13 +440,13 @@ func (ac *AdminController) UpdatePromotion(c *fiber.Ctx) error {
 }
 
 func (ac *AdminController) GetPromoUsage(c *fiber.Ctx) error {
-	var usage []struct {
+	usage := []struct {
 		BusinessName string    `json:"business_name"`
 		TenantID     string    `json:"tenant_id"`
 		PlanType     string    `json:"plan_type"`
 		AmountPaid   float64   `json:"amount_paid"`
 		CreatedAt    time.Time `json:"created_at"`
-	}
+	}{}
 
 	ac.db.Table("subscriptions").
 		Select("businesses.name as business_name, businesses.tenant_id, subscriptions.plan_type, subscriptions.amount_paid, subscriptions.created_at").

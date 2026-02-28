@@ -562,14 +562,27 @@ func PurgeHandler(db *gorm.DB) fiber.Handler {
 	}
 }
 
-// GetActivitiesHandler returns the recent activity logs for the business
+// GetActivitiesHandler returns activity logs with optional filtering
 func GetActivitiesHandler(db *gorm.DB) fiber.Handler {
 	return func(c *fiber.Ctx) error {
 		bizID := c.Locals("current_business_id").(uint)
-		logs, err := GetRecentActivityByBusiness(db, bizID, 100)
+		from := c.Query("from")
+		to := c.Query("to")
+		actionType := c.Query("action_type")
+
+		var logs []SaleActivityLogWithUser
+		var err error
+
+		if from != "" || to != "" || actionType != "" {
+			logs, err = GetActivityByBusinessWithFilters(db, bizID, from, to, actionType)
+		} else {
+			logs, err = GetRecentActivityByBusiness(db, bizID, 100)
+		}
+
 		if err != nil {
 			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 		}
+
 		// Ensure we always return an array, even if empty
 		if logs == nil {
 			logs = []SaleActivityLogWithUser{}

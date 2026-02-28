@@ -111,16 +111,26 @@ func GenerateTaxReport(db *gorm.DB, businessID uint, startDate, endDate string) 
 }
 
 // GetAuditTrail fetches rich activity logs with optional filtering
-func GetAuditTrail(db *gorm.DB, businessID uint, date string, actionType string) ([]SaleActivityLogWithUser, error) {
+func GetAuditTrail(db *gorm.DB, businessID uint, startDate, endDate string, actionType string) ([]SaleActivityLogWithUser, error) {
 	query := db.Table("sale_activity_logs").
 		Select("sale_activity_logs.*, users.first_name || ' ' || users.last_name as user_name").
 		Joins("LEFT JOIN users ON users.id = sale_activity_logs.performed_by").
 		Where("sale_activity_logs.business_id = ?", businessID)
 
-	if date != "" {
-		start, _ := time.Parse("2006-01-02", date)
-		end := start.Add(24 * time.Hour).Add(-1 * time.Second)
-		query = query.Where("sale_activity_logs.created_at BETWEEN ? AND ?", start, end)
+	if startDate != "" {
+		start, _ := time.Parse("2006-01-02", startDate)
+		if endDate != "" {
+			end, _ := time.Parse("2006-01-02", endDate)
+			end = end.Add(24 * time.Hour).Add(-1 * time.Second)
+			query = query.Where("sale_activity_logs.created_at BETWEEN ? AND ?", start, end)
+		} else {
+			end := start.Add(24 * time.Hour).Add(-1 * time.Second)
+			query = query.Where("sale_activity_logs.created_at BETWEEN ? AND ?", start, end)
+		}
+	} else if endDate != "" {
+		end, _ := time.Parse("2006-01-02", endDate)
+		end = end.Add(24 * time.Hour).Add(-1 * time.Second)
+		query = query.Where("sale_activity_logs.created_at <= ?", end)
 	}
 
 	if actionType != "" {

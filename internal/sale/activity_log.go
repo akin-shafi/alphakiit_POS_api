@@ -110,6 +110,31 @@ func GetRecentActivityByBusiness(db *gorm.DB, businessID uint, limit int) ([]Sal
 	return logs, err
 }
 
+// GetActivityByBusinessWithFilters returns filtered activity logs
+func GetActivityByBusinessWithFilters(db *gorm.DB, businessID uint, from, to string, actionType string) ([]SaleActivityLogWithUser, error) {
+	logs := make([]SaleActivityLogWithUser, 0)
+	query := db.Table("sale_activity_logs").
+		Select("sale_activity_logs.*, users.first_name || ' ' || users.last_name as user_name").
+		Joins("LEFT JOIN users ON users.id = sale_activity_logs.performed_by").
+		Where("sale_activity_logs.business_id = ?", businessID)
+
+	if from != "" {
+		start, _ := time.Parse("2006-01-02", from)
+		query = query.Where("sale_activity_logs.created_at >= ?", start)
+	}
+	if to != "" {
+		end, _ := time.Parse("2006-01-02", to)
+		end = end.Add(24 * time.Hour).Add(-1 * time.Second)
+		query = query.Where("sale_activity_logs.created_at <= ?", end)
+	}
+	if actionType != "" {
+		query = query.Where("sale_activity_logs.action_type = ?", actionType)
+	}
+
+	err := query.Order("sale_activity_logs.created_at DESC").Scan(&logs).Error
+	return logs, err
+}
+
 // MigrateActivityLog runs the database migration for activity logs
 func MigrateActivityLog(db *gorm.DB) error {
 	return db.AutoMigrate(&SaleActivityLog{})

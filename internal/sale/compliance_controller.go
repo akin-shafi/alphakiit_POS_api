@@ -63,10 +63,11 @@ func AuditTrailHandler(db *gorm.DB) fiber.Handler {
 			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "Compliance module not active"})
 		}
 
-		date := c.Query("date")
+		startDate := c.Query("start_date")
+		endDate := c.Query("end_date")
 		actionType := c.Query("action_type") // optional filtering
 
-		logs, err := GetAuditTrail(db, bizID, date, actionType)
+		logs, err := GetAuditTrail(db, bizID, startDate, endDate, actionType)
 		if err != nil {
 			return fiber.NewError(fiber.StatusInternalServerError, "Failed to fetch audit trail: "+err.Error())
 		}
