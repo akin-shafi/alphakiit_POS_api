@@ -3,23 +3,23 @@ package common
 type PlanType string
 
 const (
-	PlanTrial            PlanType = "TRIAL"
-	
+	PlanTrial PlanType = "TRIAL"
+
 	PlanEssentialMonthly PlanType = "ESSENTIAL_MONTHLY"
 	PlanEssentialAnnual  PlanType = "ESSENTIAL_ANNUAL"
-	
-	PlanGrowthMonthly    PlanType = "GROWTH_MONTHLY"
-	PlanGrowthAnnual     PlanType = "GROWTH_ANNUAL"
-	
-	PlanScaleMonthly     PlanType = "SCALE_MONTHLY"
-	PlanScaleAnnual      PlanType = "SCALE_ANNUAL"
+
+	PlanGrowthMonthly PlanType = "GROWTH_MONTHLY"
+	PlanGrowthAnnual  PlanType = "GROWTH_ANNUAL"
+
+	PlanScaleMonthly PlanType = "SCALE_MONTHLY"
+	PlanScaleAnnual  PlanType = "SCALE_ANNUAL"
 
 	// Legacy support / Internal mapping
-	PlanMonthly          PlanType = "MONTHLY"
-	PlanAnnual           PlanType = "ANNUAL"
-	PlanQuarterly        PlanType = "QUARTERLY"
-	PlanServiceMonthly   PlanType = "SERVICE_MONTHLY"
-	PlanServiceAnnual    PlanType = "SERVICE_ANNUAL"
+	PlanMonthly        PlanType = "MONTHLY"
+	PlanAnnual         PlanType = "ANNUAL"
+	PlanQuarterly      PlanType = "QUARTERLY"
+	PlanServiceMonthly PlanType = "SERVICE_MONTHLY"
+	PlanServiceAnnual  PlanType = "SERVICE_ANNUAL"
 )
 
 type SubscriptionStatus string
@@ -56,6 +56,7 @@ type SubscriptionPlan struct {
 	ProductLimit         int            `json:"product_limit"`
 	AllowedBusinessTypes []BusinessType `json:"allowed_business_types,omitempty"`
 	FreeModules          []ModuleType   `json:"free_modules,omitempty"`
+	Popular              bool           `json:"popular,omitempty"`
 }
 
 var AvailablePlans = []SubscriptionPlan{
@@ -68,6 +69,7 @@ var AvailablePlans = []SubscriptionPlan{
 		UserLimit:    2,
 		ProductLimit: 50,
 	},
+
 	// ESSENTIAL TIER
 	{
 		Type:         PlanEssentialMonthly,
@@ -75,8 +77,8 @@ var AvailablePlans = []SubscriptionPlan{
 		DurationDays: 30,
 		Price:        12500,
 		Currency:     "NGN",
-		UserLimit:    3,
-		ProductLimit: 500,
+		UserLimit:    2,
+		ProductLimit: 300,
 		FreeModules:  []ModuleType{ModuleWhatsApp},
 	},
 	{
@@ -85,10 +87,11 @@ var AvailablePlans = []SubscriptionPlan{
 		DurationDays: 365,
 		Price:        100000,
 		Currency:     "NGN",
-		UserLimit:    3,
-		ProductLimit: 500,
+		UserLimit:    2,
+		ProductLimit: 300,
 		FreeModules:  []ModuleType{ModuleWhatsApp},
 	},
+
 	// GROWTH TIER
 	{
 		Type:         PlanGrowthMonthly,
@@ -98,7 +101,8 @@ var AvailablePlans = []SubscriptionPlan{
 		Currency:     "NGN",
 		UserLimit:    10,
 		ProductLimit: 2500,
-		FreeModules:  []ModuleType{ModuleInventory, ModuleCompliance, ModuleWhatsApp},
+		FreeModules:  []ModuleType{ModuleInventory, ModuleWhatsApp},
+		Popular:      true,
 	},
 	{
 		Type:         PlanGrowthAnnual,
@@ -108,33 +112,49 @@ var AvailablePlans = []SubscriptionPlan{
 		Currency:     "NGN",
 		UserLimit:    10,
 		ProductLimit: 2500,
-		FreeModules:  []ModuleType{ModuleInventory, ModuleCompliance, ModuleWhatsApp},
+		FreeModules:  []ModuleType{ModuleInventory, ModuleWhatsApp},
+		Popular:      true,
 	},
+
 	// SCALE TIER
 	{
 		Type:         PlanScaleMonthly,
 		Name:         "Scale Monthly",
 		DurationDays: 30,
-		Price:        45000,
+		Price:        55000,
 		Currency:     "NGN",
 		UserLimit:    50,
 		ProductLimit: 15000,
 		FreeModules: []ModuleType{
-			ModuleKDS, ModuleTables, ModuleDrafts, ModuleInventory,
-			ModuleRecipe, ModuleWhatsApp, ModuleCompliance, ModuleQRMenu, ModuleBulkStock,
+			ModuleKDS,
+			ModuleTables,
+			ModuleDrafts,
+			ModuleInventory,
+			ModuleRecipe,
+			ModuleWhatsApp,
+			ModuleCompliance,
+			ModuleQRMenu,
+			ModuleBulkStock,
 		},
 	},
 	{
 		Type:         PlanScaleAnnual,
 		Name:         "Scale Annual",
 		DurationDays: 365,
-		Price:        360000,
+		Price:        440000,
 		Currency:     "NGN",
 		UserLimit:    50,
 		ProductLimit: 15000,
 		FreeModules: []ModuleType{
-			ModuleKDS, ModuleTables, ModuleDrafts, ModuleInventory,
-			ModuleRecipe, ModuleWhatsApp, ModuleCompliance, ModuleQRMenu, ModuleBulkStock,
+			ModuleKDS,
+			ModuleTables,
+			ModuleDrafts,
+			ModuleInventory,
+			ModuleRecipe,
+			ModuleWhatsApp,
+			ModuleCompliance,
+			ModuleQRMenu,
+			ModuleBulkStock,
 		},
 	},
 }
@@ -151,19 +171,19 @@ var AvailableModules = []ModulePlan{
 	{
 		Type:        ModuleKDS,
 		Name:        "Kitchen Display System (KDS)",
-		Price:       3000,
+		Price:       4000,
 		Description: "Real-time kitchen order monitor for chefs",
 	},
 	{
 		Type:        ModuleTables,
 		Name:        "Table Management",
-		Price:       3000,
+		Price:       4000,
 		Description: "Track floor layouts and table status",
 	},
 	{
 		Type:        ModuleDrafts,
 		Name:        "Save Drafts",
-		Price:       2500,
+		Price:       3000,
 		Description: "Save and resume incomplete orders",
 	},
 	{
@@ -217,7 +237,7 @@ var AvailableBundles = []ModuleBundle{
 	{
 		Code:  "OPS_PACK",
 		Name:  "Operations Pack",
-		Price: 12000,
+		Price: 10000,
 		Modules: []ModuleType{
 			ModuleKDS,
 			ModuleDrafts,
@@ -228,7 +248,7 @@ var AvailableBundles = []ModuleBundle{
 	{
 		Code:  "CONTROL_PACK",
 		Name:  "Control & Anti-Loss Pack",
-		Price: 30000,
+		Price: 26000,
 		Modules: []ModuleType{
 			ModuleInventory,
 			ModuleRecipe,
@@ -239,7 +259,7 @@ var AvailableBundles = []ModuleBundle{
 	{
 		Code:  "COMPLIANCE_PACK",
 		Name:  "Compliance & Finance Pack",
-		Price: 25000,
+		Price: 22000,
 		Modules: []ModuleType{
 			ModuleInventory,
 			ModuleCompliance,
@@ -249,7 +269,7 @@ var AvailableBundles = []ModuleBundle{
 	{
 		Code:  "OWNER_PRO",
 		Name:  "Owner Pro Pack",
-		Price: 45000,
+		Price: 38000,
 		Modules: []ModuleType{
 			ModuleInventory,
 			ModuleRecipe,
