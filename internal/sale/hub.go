@@ -16,6 +16,7 @@ const (
 	EventOrderUpdated SaleEventType = "ORDER_UPDATED"
 	EventOrderVoided  SaleEventType = "ORDER_VOIDED"
 	EventOrderPaid    SaleEventType = "ORDER_PAID"
+	EventPaymentVerified SaleEventType = "PAYMENT_VERIFIED"
 )
 
 // SaleEvent represents the payload sent over WebSockets

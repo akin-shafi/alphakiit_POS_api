@@ -4,11 +4,21 @@ type PlanType string
 
 const (
 	PlanTrial            PlanType = "TRIAL"
+	
+	PlanEssentialMonthly PlanType = "ESSENTIAL_MONTHLY"
+	PlanEssentialAnnual  PlanType = "ESSENTIAL_ANNUAL"
+	
+	PlanGrowthMonthly    PlanType = "GROWTH_MONTHLY"
+	PlanGrowthAnnual     PlanType = "GROWTH_ANNUAL"
+	
+	PlanScaleMonthly     PlanType = "SCALE_MONTHLY"
+	PlanScaleAnnual      PlanType = "SCALE_ANNUAL"
+
+	// Legacy support / Internal mapping
 	PlanMonthly          PlanType = "MONTHLY"
-	PlanQuarterly        PlanType = "QUARTERLY"
 	PlanAnnual           PlanType = "ANNUAL"
+	PlanQuarterly        PlanType = "QUARTERLY"
 	PlanServiceMonthly   PlanType = "SERVICE_MONTHLY"
-	PlanServiceQuarterly PlanType = "SERVICE_QUARTERLY"
 	PlanServiceAnnual    PlanType = "SERVICE_ANNUAL"
 )
 
@@ -58,65 +68,74 @@ var AvailablePlans = []SubscriptionPlan{
 		UserLimit:    2,
 		ProductLimit: 50,
 	},
+	// ESSENTIAL TIER
 	{
-		Type:         PlanMonthly,
-		Name:         "Monthly Starter",
+		Type:         PlanEssentialMonthly,
+		Name:         "Essential Monthly",
 		DurationDays: 30,
-		Price:        30000,
+		Price:        12500,
 		Currency:     "NGN",
 		UserLimit:    3,
-		ProductLimit: 300,
+		ProductLimit: 500,
+		FreeModules:  []ModuleType{ModuleWhatsApp},
 	},
 	{
-		Type:         PlanQuarterly,
-		Name:         "Quarterly Control",
-		DurationDays: 90,
-		Price:        81000, // ₦27,000 / month
-		Currency:     "NGN",
-		UserLimit:    7,
-		ProductLimit: 1500,
-	},
-	{
-		Type:         PlanAnnual,
-		Name:         "Annual Owner Pro",
+		Type:         PlanEssentialAnnual,
+		Name:         "Essential Annual",
 		DurationDays: 365,
-		Price:        300000, // ₦25,000 / month
+		Price:        100000,
 		Currency:     "NGN",
-		UserLimit:    15,
-		ProductLimit: 5000,
+		UserLimit:    3,
+		ProductLimit: 500,
+		FreeModules:  []ModuleType{ModuleWhatsApp},
+	},
+	// GROWTH TIER
+	{
+		Type:         PlanGrowthMonthly,
+		Name:         "Growth Monthly",
+		DurationDays: 30,
+		Price:        25000,
+		Currency:     "NGN",
+		UserLimit:    10,
+		ProductLimit: 2500,
+		FreeModules:  []ModuleType{ModuleInventory, ModuleCompliance, ModuleWhatsApp},
 	},
 	{
-		Type:                 PlanServiceMonthly,
-		Name:                 "Basic Sales POS (Monthly)",
-		DurationDays:         30,
-		Price:                15000,
-		Currency:             "NGN",
-		UserLimit:            2,
-		ProductLimit:         25, // Strictly for kiosks/LPG/small shops
-		AllowedBusinessTypes: []BusinessType{TypeLPGStation, TypeFuelStation},
-		FreeModules:          []ModuleType{ModuleBulkStock},
+		Type:         PlanGrowthAnnual,
+		Name:         "Growth Annual",
+		DurationDays: 365,
+		Price:        200000,
+		Currency:     "NGN",
+		UserLimit:    10,
+		ProductLimit: 2500,
+		FreeModules:  []ModuleType{ModuleInventory, ModuleCompliance, ModuleWhatsApp},
+	},
+	// SCALE TIER
+	{
+		Type:         PlanScaleMonthly,
+		Name:         "Scale Monthly",
+		DurationDays: 30,
+		Price:        45000,
+		Currency:     "NGN",
+		UserLimit:    50,
+		ProductLimit: 15000,
+		FreeModules: []ModuleType{
+			ModuleKDS, ModuleTables, ModuleDrafts, ModuleInventory,
+			ModuleRecipe, ModuleWhatsApp, ModuleCompliance, ModuleQRMenu, ModuleBulkStock,
+		},
 	},
 	{
-		Type:                 PlanServiceQuarterly,
-		Name:                 "Basic Sales POS (Quarterly)",
-		DurationDays:         90,
-		Price:                40000,
-		Currency:             "NGN",
-		UserLimit:            3, // +1 User Bonus
-		ProductLimit:         25,
-		AllowedBusinessTypes: []BusinessType{TypeLPGStation, TypeFuelStation},
-		FreeModules:          []ModuleType{ModuleBulkStock},
-	},
-	{
-		Type:                 PlanServiceAnnual,
-		Name:                 "Basic Sales POS (Annual)",
-		DurationDays:         365,
-		Price:                150000,
-		Currency:             "NGN",
-		UserLimit:            5, // +3 User Bonus
-		ProductLimit:         25,
-		AllowedBusinessTypes: []BusinessType{TypeLPGStation, TypeFuelStation},
-		FreeModules:          []ModuleType{ModuleBulkStock},
+		Type:         PlanScaleAnnual,
+		Name:         "Scale Annual",
+		DurationDays: 365,
+		Price:        360000,
+		Currency:     "NGN",
+		UserLimit:    50,
+		ProductLimit: 15000,
+		FreeModules: []ModuleType{
+			ModuleKDS, ModuleTables, ModuleDrafts, ModuleInventory,
+			ModuleRecipe, ModuleWhatsApp, ModuleCompliance, ModuleQRMenu, ModuleBulkStock,
+		},
 	},
 }
 
@@ -132,56 +151,56 @@ var AvailableModules = []ModulePlan{
 	{
 		Type:        ModuleKDS,
 		Name:        "Kitchen Display System (KDS)",
-		Price:       5000,
+		Price:       3000,
 		Description: "Real-time kitchen order monitor for chefs",
 	},
 	{
 		Type:        ModuleTables,
 		Name:        "Table Management",
-		Price:       5000,
+		Price:       3000,
 		Description: "Track floor layouts and table status",
 	},
 	{
 		Type:        ModuleDrafts,
 		Name:        "Save Drafts",
-		Price:       4000,
+		Price:       2500,
 		Description: "Save and resume incomplete orders",
 	},
 	{
 		Type:        ModuleInventory,
 		Name:        "Advanced Inventory Control",
-		Price:       18000,
+		Price:       15000,
 		Description: "Batch tracking, shrinkage alerts, and stock history",
 	},
 	{
 		Type:        ModuleRecipe,
 		Name:        "Recipe & Cost Control (BOM)",
-		Price:       15000,
+		Price:       12000,
 		Description: "Ingredient-level cost tracking per item sold",
 		DependsOn:   []ModuleType{ModuleInventory},
 	},
 	{
 		Type:        ModuleWhatsApp,
 		Name:        "Security & Owner WhatsApp Alerts",
-		Price:       8000,
+		Price:       5000,
 		Description: "Instant alerts for voids, overrides, refunds, and logins",
 	},
 	{
 		Type:        ModuleCompliance,
 		Name:        "Automated Compliance & Audit Replay",
-		Price:       15000,
+		Price:       12000,
 		Description: "Tax-ready reports, audit trail, and activity playback",
 	},
 	{
 		Type:        ModuleQRMenu,
 		Name:        "QR Digital Menu",
-		Price:       8000,
+		Price:       5000,
 		Description: "Public QR-based digital menu with live product updates",
 	},
 	{
 		Type:        ModuleBulkStock,
 		Name:        "Bulk Stock & Round Tracking",
-		Price:       12000,
+		Price:       10000,
 		Description: "Specialized tracking for fuel, gas, and bulk commodities.",
 	},
 }

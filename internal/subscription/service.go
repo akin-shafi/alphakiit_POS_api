@@ -185,10 +185,10 @@ func CheckLaunchOfferEligibility(db *gorm.DB, planType PlanType) (bool, float64)
 	}
 
 	switch planType {
-	case PlanQuarterly, PlanServiceQuarterly:
-		if promo.QuarterlyDiscount > 0 {
-			return true, promo.QuarterlyDiscount
-		}
+	// case PlanQuarterly, PlanServiceQuarterly:
+	// 	if promo.QuarterlyDiscount > 0 {
+	// 		return true, promo.QuarterlyDiscount
+	// 	}
 	case PlanAnnual, PlanServiceAnnual:
 		if promo.AnnualDiscount > 0 {
 			return true, promo.AnnualDiscount

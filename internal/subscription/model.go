@@ -17,7 +17,7 @@ const (
 	PlanQuarterly        = common.PlanQuarterly
 	PlanAnnual           = common.PlanAnnual
 	PlanServiceMonthly   = common.PlanServiceMonthly
-	PlanServiceQuarterly = common.PlanServiceQuarterly
+	// PlanServiceQuarterly = common.PlanServiceQuarterly
 	PlanServiceAnnual    = common.PlanServiceAnnual
 
 	StatusActive         = common.StatusActive

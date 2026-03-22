@@ -164,8 +164,20 @@ func CompleteSaleWithReservation(db *gorm.DB, saleID, businessID, cashierID uint
 		return nil, errors.New("sale not found or already completed")
 	}
 
-	if sale.Total-req.Discount > req.AmountPaid {
+	sale.Total = sale.Subtotal - req.Discount + req.Tax
+
+	var totalPaid float64
+	for _, p := range req.Payments {
+		totalPaid += p.Amount
+	}
+
+	if totalPaid < sale.Total {
 		return nil, errors.New("insufficient payment")
+	}
+
+	mainMethod := "SPLIT"
+	if len(req.Payments) == 1 {
+		mainMethod = req.Payments[0].Method
 	}
 
 	// Initialize reservation service
@@ -181,14 +193,14 @@ func CompleteSaleWithReservation(db *gorm.DB, saleID, businessID, cashierID uint
 		// Release reservation
 		if err := reservationService.ReleaseReservation(saleID, item.ProductID); err != nil {
 			// Log but don't fail - reservation might have expired
-			// TODO: Add proper logging
 		}
 	}
 
 	now := time.Now()
 	sale.Status = StatusCompleted
-	sale.PaymentMethod = req.PaymentMethod
+	sale.PaymentMethod = mainMethod
 	sale.Discount = req.Discount
+	sale.Tax = req.Tax
 	sale.SyncedAt = &now
 
 	// Assign daily sequence number
@@ -202,16 +214,18 @@ func CompleteSaleWithReservation(db *gorm.DB, saleID, businessID, cashierID uint
 		return nil, err
 	}
 
-	// Update shift metrics if sale is linked to a shift
+	// Update shift metrics
 	if sale.ShiftID != nil {
-		tx.Exec("UPDATE shifts SET total_sales = total_sales + ?, transaction_count = transaction_count + 1 WHERE id = ?",
-			sale.Total-sale.Discount, *sale.ShiftID)
+		for _, p := range req.Payments {
+			tx.Exec("UPDATE shifts SET total_sales = total_sales + ?, transaction_count = transaction_count + 1 WHERE id = ?",
+				p.Amount, *sale.ShiftID)
+		}
 	}
 
 	// Log activity
 	details := ActivityDetails{
-		PaymentMethod: req.PaymentMethod,
-		AmountPaid:    req.AmountPaid,
+		PaymentMethod: mainMethod,
+		AmountPaid:    totalPaid,
 	}
 	LogActivity(tx, saleID, businessID, cashierID, ActionCompleted, details)
 
@@ -222,7 +236,7 @@ func CompleteSaleWithReservation(db *gorm.DB, saleID, businessID, cashierID uint
 	return &SaleReceipt{
 		Sale:        &sale,
 		Items:       sale.SaleItems,
-		Change:      req.AmountPaid - (sale.Total - req.Discount),
+		Change:      totalPaid - sale.Total,
 		ReceiptNo:   generateReceiptNo(sale.DailySequence),
 		GeneratedAt: time.Now(),
 	}, nil

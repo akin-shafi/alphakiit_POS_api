@@ -30,6 +30,7 @@ import (
 	"pos-fiber-app/internal/printing"
 	"pos-fiber-app/internal/product"
 	"pos-fiber-app/internal/recipe"
+	"pos-fiber-app/internal/reconciliation"
 	"pos-fiber-app/internal/report"
 	"pos-fiber-app/internal/sale"
 	"pos-fiber-app/internal/seed"
@@ -166,6 +167,7 @@ func main() {
 	seed.RegisterPublicRoutes(apiV1, db)
 	advert.RegisterPublicAdvertRoutes(apiV1, db)
 	product.RegisterPublicProductRoutes(apiV1, db)
+	reconciliation.RegisterRoutes(apiV1, db)
 
 	// Auth (Public part: login, verify-otp, password-reset)
 	auth.RegisterAuthRoutes(apiV1.Group("/auth"), db)
@@ -214,6 +216,7 @@ func main() {
 	recipe.RegisterRecipeRoutes(businessScoped, db)
 	tutorial.RegisterRoutes(businessScoped, db)
 	notification.RegisterNotificationRoutes(businessScoped, db)
+	reconciliation.RegisterAdminRoutes(businessScoped, db)
 
 	// === Start server ===
 	port := config.AppPort()

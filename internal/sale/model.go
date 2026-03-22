@@ -12,10 +12,21 @@ import (
 type SaleStatus string
 
 const (
-	StatusDraft     SaleStatus = "DRAFT"
-	StatusCompleted SaleStatus = "COMPLETED"
-	StatusVoided    SaleStatus = "VOIDED"
-	StatusHeld      SaleStatus = "HELD" // parked for later
+	StatusDraft          SaleStatus = "DRAFT"
+	StatusCompleted      SaleStatus = "COMPLETED"
+	StatusVoided         SaleStatus = "VOIDED"
+	StatusHeld           SaleStatus = "HELD"            // parked for later
+	StatusPendingPayment SaleStatus = "PENDING_PAYMENT" // awaiting external verification
+)
+
+type ReconciliationStatus string
+
+const (
+	ReconPending  ReconciliationStatus = "PENDING"
+	ReconSuccess  ReconciliationStatus = "SUCCESS"
+	ReconFailed   ReconciliationStatus = "FAILED"
+	ReconMismatch ReconciliationStatus = "MISMATCH"
+	ReconPartial  ReconciliationStatus = "PARTIAL"
 )
 
 type PrepStatus string
@@ -28,24 +39,25 @@ const (
 )
 
 type Sale struct {
-	ID               uint       `gorm:"primaryKey" json:"id"`
-	BusinessID       uint       `gorm:"index;index:idx_business_saledate" json:"business_id"`
-	TenantID         string     `gorm:"index;size:8" json:"tenant_id"`
-	CustomerName     string     `json:"customer_name,omitempty"`
-	CustomerPhone    string     `json:"customer_phone,omitempty"`
-	Subtotal         float64    `gorm:"type:decimal(12,2)" json:"subtotal"`
-	Tax              float64    `gorm:"type:decimal(12,2)" json:"tax"`
-	Discount         float64    `gorm:"type:decimal(12,2)" json:"discount"`
-	Total            float64    `gorm:"type:decimal(12,2)" json:"total"`
-	PaymentMethod    string     `json:"payment_method"` // CASH, CARD, TRANSFER, etc.
-	Status           SaleStatus `gorm:"type:varchar(20);default:'DRAFT'" json:"status"`
-	TerminalID       uint       `json:"terminal_id"`
-	OutletID         uint       `gorm:"index" json:"outlet_id"`
-	CashierID        uint       `json:"cashier_id"`
-	TerminalProvider string     `json:"terminal_provider,omitempty"`              // moniepoint, opay, etc.
-	DailySequence    int        `gorm:"type:int;default:0" json:"daily_sequence"` // resets daily
-	SaleDate         time.Time  `gorm:"index:idx_business_saledate" json:"sale_date"`
-	SyncedAt         *time.Time `json:"synced_at,omitempty"` // for offline sync
+	ID                uint       `gorm:"primaryKey" json:"id"`
+	BusinessID        uint       `gorm:"index;index:idx_business_saledate" json:"business_id"`
+	TenantID          string     `gorm:"index;size:8" json:"tenant_id"`
+	CustomerName      string     `json:"customer_name,omitempty"`
+	CustomerPhone     string     `json:"customer_phone,omitempty"`
+	Subtotal          float64    `gorm:"type:decimal(12,2)" json:"subtotal"`
+	Tax               float64    `gorm:"type:decimal(12,2)" json:"tax"`
+	Discount          float64    `gorm:"type:decimal(12,2)" json:"discount"`
+	Total             float64    `gorm:"type:decimal(12,2)" json:"total"`
+	PaymentMethod     string     `json:"payment_method"` // CASH, CARD, TRANSFER, etc.
+	Status            SaleStatus `gorm:"type:varchar(20);default:'DRAFT'" json:"status"`
+	TerminalID        uint       `json:"terminal_id"`
+	OutletID          uint       `gorm:"index" json:"outlet_id"`
+	CashierID         uint       `json:"cashier_id"`
+	TerminalProvider  string     `json:"terminal_provider,omitempty"` // moniepoint, opay, etc.
+	InternalReference string     `gorm:"uniqueIndex;size:50" json:"internal_reference,omitempty"`
+	DailySequence     int        `gorm:"type:int;default:0" json:"daily_sequence"` // resets daily
+	SaleDate          time.Time  `gorm:"index:idx_business_saledate" json:"sale_date"`
+	SyncedAt          *time.Time `json:"synced_at,omitempty"` // for offline sync
 	// New fields for table management and shift tracking
 	TableID           *uint          `gorm:"index" json:"table_id,omitempty"`
 	TableNumber       string         `json:"table_number,omitempty"`                               // Snapshot for history
@@ -58,6 +70,38 @@ type Sale struct {
 
 	CashierName string     `gorm:"-" json:"cashier_name"` // Populated manually or via join
 	SaleItems   []SaleItem `gorm:"foreignKey:SaleID;constraint:OnDelete:CASCADE" json:"items"`
+	Payments    []Payment  `gorm:"foreignKey:SaleID;constraint:OnDelete:CASCADE" json:"payments"`
+}
+
+type Payment struct {
+	ID                 uint                 `gorm:"primaryKey" json:"id"`
+	SaleID             uint                 `gorm:"index" json:"sale_id"`
+	BusinessID         uint                 `gorm:"index" json:"business_id"`
+	Amount             float64              `gorm:"type:decimal(12,2)" json:"amount"`
+	CommissionFee      float64              `gorm:"type:decimal(12,2)" json:"commission_fee"`
+	NetAmount          float64              `gorm:"type:decimal(12,2)" json:"net_amount"`
+	Provider           string               `json:"provider"`
+	HardwareTerminalID string               `gorm:"index;size:50" json:"hardware_terminal_id,omitempty"`
+	InternalReference  string               `gorm:"uniqueIndex;size:50" json:"internal_reference"`
+	ExternalReference  string               `gorm:"index;size:100" json:"external_reference"`
+	Status             ReconciliationStatus `gorm:"type:varchar(20);default:'PENDING'" json:"status"`
+	Metadata           string               `gorm:"type:text" json:"metadata"`
+	RawResponse        string               `gorm:"type:text" json:"raw_response"`
+	ReconciledAt       time.Time            `json:"reconciled_at"`
+	SettledAt          *time.Time           `json:"settled_at,omitempty"`
+	CreatedAt          time.Time            `json:"created_at"`
+	UpdatedAt          time.Time            `json:"updated_at"`
+}
+
+type PaymentLog struct {
+	ID         uint      `gorm:"primaryKey" json:"id"`
+	PaymentID  *uint     `gorm:"index" json:"payment_id"`
+	BusinessID uint      `gorm:"index" json:"business_id"`
+	Provider   string    `json:"provider"`
+	RawPayload string    `gorm:"type:text" json:"raw_payload"`
+	Status     string    `json:"status"`
+	Notes      string    `json:"notes"`
+	CreatedAt  time.Time `json:"created_at"`
 }
 
 type SaleItem struct {

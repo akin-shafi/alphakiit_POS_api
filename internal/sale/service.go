@@ -5,6 +5,9 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"crypto/rand"
+	"encoding/hex"
+	"strings"
 	"time"
 
 	"pos-fiber-app/internal/common"
@@ -23,25 +26,29 @@ type AddItemRequest struct {
 	Quantity  int  `json:"quantity" validate:"required,gt=0"`
 }
 
-type CompleteSaleRequest struct {
-	PaymentMethod    string  `json:"payment_method" validate:"required"`
-	AmountPaid       float64 `json:"amount_paid" validate:"required,gte=0"`
-	Discount         float64 `json:"discount" validate:"gte=0"`
-	Tax              float64 `json:"tax"`
+// Removed singular CompleteSaleRequest in favor of multi-payment logic
+
+type PaymentInfoRequest struct {
+	Method           string  `json:"method" validate:"required"` // CASH, CARD, TRANSFER, etc.
+	Amount           float64 `json:"amount" validate:"required,gt=0"`
 	TerminalProvider string  `json:"terminal_provider,omitempty"`
-	ShiftID          *uint   `json:"shift_id,omitempty"`
 }
 
 type CreateSaleRequest struct {
-	Items            []SaleItemRequest `json:"items" validate:"required,min=1"`
-	PaymentMethod    string            `json:"payment_method" validate:"required"`
-	AmountPaid       float64           `json:"amount_paid" validate:"required,gte=0"`
-	Discount         float64           `json:"discount" validate:"gte=0"`
-	Tax              float64           `json:"tax"`
-	CustomerName     string            `json:"customer_name,omitempty"`
-	CustomerPhone    string            `json:"customer_phone,omitempty"`
-	TerminalProvider string            `json:"terminal_provider,omitempty"`
-	ShiftID          *uint             `json:"shift_id,omitempty"`
+	Items         []SaleItemRequest    `json:"items" validate:"required,min=1"`
+	Payments      []PaymentInfoRequest `json:"payments" validate:"required,min=1"`
+	Discount      float64              `json:"discount" validate:"gte=0"`
+	Tax           float64              `json:"tax"`
+	CustomerName  string               `json:"customer_name,omitempty"`
+	CustomerPhone string               `json:"customer_phone,omitempty"`
+	ShiftID       *uint                `json:"shift_id,omitempty"`
+}
+
+type CompleteSaleRequest struct {
+	Payments []PaymentInfoRequest `json:"payments" validate:"required,min=1"`
+	Discount float64              `json:"discount" validate:"gte=0"`
+	Tax      float64              `json:"tax"`
+	ShiftID  *uint                `json:"shift_id,omitempty"`
 }
 
 type SaleItemRequest struct {
@@ -229,8 +236,13 @@ func CompleteSale(db *gorm.DB, saleID, businessID uint, req CompleteSaleRequest)
 	// Recalculate total with tax and discount
 	sale.Total = sale.Subtotal - req.Discount + req.Tax
 
-	if sale.Total > req.AmountPaid {
-		return nil, errors.New("insufficient payment")
+	var totalPaid float64
+	for _, p := range req.Payments {
+		totalPaid += p.Amount
+	}
+
+	if totalPaid < sale.Total {
+		return nil, fmt.Errorf("insufficient payment: total %f, paid %f", sale.Total, totalPaid)
 	}
 
 	// Deduct inventory
@@ -242,18 +254,70 @@ func CompleteSale(db *gorm.DB, saleID, businessID uint, req CompleteSaleRequest)
 	}
 
 	now := time.Now()
-	sale.Status = StatusCompleted
-	sale.PaymentMethod = req.PaymentMethod
-	sale.TerminalProvider = req.TerminalProvider
+	
+	// Check if payment verification is required for this business
+	var biz struct {
+		PaymentVerificationEnabled bool
+	}
+	tx.Table("businesses").Select("payment_verification_enabled").Where("id = ?", businessID).Scan(&biz)
+
+	hasVerificationPending := false
+	mainPaymentMethod := "SPLIT"
+	if len(req.Payments) == 1 {
+		mainPaymentMethod = req.Payments[0].Method
+	}
+
+	for _, p := range req.Payments {
+		isDigital := (p.Method == "EXTERNAL_TERMINAL" || p.Method == "CARD" || p.Method == "TRANSFER")
+		
+		if biz.PaymentVerificationEnabled && isDigital && p.TerminalProvider != "" {
+			ref := generateInternalRef()
+			hasVerificationPending = true
+			
+			payment := Payment{
+				SaleID:            sale.ID,
+				BusinessID:        businessID,
+				Amount:            p.Amount,
+				Provider:          strings.ToLower(p.TerminalProvider),
+				InternalReference: ref,
+				Status:            ReconPending,
+				CreatedAt:         now,
+			}
+			if err := tx.Create(&payment).Error; err != nil {
+				return nil, fmt.Errorf("failed to initiate reconciliation: %w", err)
+			}
+		} else {
+			// Direct payment record
+			payment := Payment{
+				SaleID:            sale.ID,
+				BusinessID:        businessID,
+				Amount:            p.Amount,
+				Provider:          p.Method,
+				InternalReference: "DIRECT-" + p.Method + "-" + fmt.Sprintf("%d", time.Now().Unix()),
+				Status:            ReconSuccess,
+				ReconciledAt:      now,
+				CreatedAt:         now,
+			}
+			if err := tx.Create(&payment).Error; err != nil {
+				return nil, err
+			}
+		}
+	}
+
+	if hasVerificationPending {
+		sale.Status = StatusPendingPayment
+	} else {
+		sale.Status = StatusCompleted
+	}
+
+	sale.PaymentMethod = mainPaymentMethod
 	sale.Discount = req.Discount
 	sale.Tax = req.Tax
-	sale.SyncedAt = &now // mark as synced
+	sale.SyncedAt = &now 
 	if req.ShiftID != nil {
 		sale.ShiftID = req.ShiftID
 	}
 
-	// ... inside CompleteSale before saving
-	// Assign daily sequence number
 	seq, err := getNextDailySequence(tx, businessID)
 	if err != nil {
 		return nil, err
@@ -268,22 +332,16 @@ func CompleteSale(db *gorm.DB, saleID, businessID uint, req CompleteSaleRequest)
 		return nil, err
 	}
 
-	// Update Shift Metrics
-	if sale.ShiftID != nil {
-		shiftSvc := shift.NewShiftService(db)
-		_ = shiftSvc.UpdateShiftMetrics(*sale.ShiftID, sale.Total, sale.PaymentMethod)
-	}
-
 	// Log Activity
 	_ = LogActivity(db, sale.ID, businessID, sale.CashierID, ActionCompleted, ActivityDetails{
-		AmountPaid:    req.AmountPaid,
-		PaymentMethod: req.PaymentMethod,
+		AmountPaid:    totalPaid,
+		PaymentMethod: mainPaymentMethod,
 	})
 
 	return &SaleReceipt{
 		Sale:        &sale,
 		Items:       sale.SaleItems,
-		Change:      req.AmountPaid - sale.Total,
+		Change:      totalPaid - sale.Total,
 		ReceiptNo:   generateReceiptNo(sale.DailySequence),
 		GeneratedAt: time.Now(),
 	}, nil
@@ -296,31 +354,33 @@ func CreateSale(db *gorm.DB, businessID uint, tenantID string, outletID uint, ca
 
 	now := time.Now()
 
-	// 1. Get Next Sequence
 	seq, err := getNextDailySequence(tx, businessID)
 	if err != nil {
 		return nil, err
 	}
 
-	// 2. Create Sale Header
+	mainMethod := "SPLIT"
+	if len(req.Payments) == 1 {
+		mainMethod = req.Payments[0].Method
+	}
+
 	sale := &Sale{
-		BusinessID:       businessID,
-		TenantID:         tenantID,
-		CashierID:        cashierID,
-		OutletID:         outletID,
-		Status:           StatusCompleted, // Direct to completed
-		PaymentMethod:    req.PaymentMethod,
-		Discount:         req.Discount,
-		Tax:              req.Tax,
-		CustomerName:     req.CustomerName,
-		CustomerPhone:    req.CustomerPhone,
-		TerminalProvider: req.TerminalProvider,
-		SaleDate:         now,
-		DailySequence:    seq,
-		Subtotal:         0.0,
-		Total:            0.0,
-		SyncedAt:         &now,
-		ShiftID:          req.ShiftID,
+		BusinessID:    businessID,
+		TenantID:      tenantID,
+		CashierID:     cashierID,
+		OutletID:      outletID,
+		Status:        StatusCompleted, 
+		PaymentMethod: mainMethod,
+		Discount:      req.Discount,
+		Tax:           req.Tax,
+		CustomerName:  req.CustomerName,
+		CustomerPhone: req.CustomerPhone,
+		SaleDate:      now,
+		DailySequence: seq,
+		Subtotal:      0.0,
+		Total:         0.0,
+		SyncedAt:      &now,
+		ShiftID:       req.ShiftID,
 	}
 
 	if err := tx.Create(sale).Error; err != nil {
@@ -330,30 +390,26 @@ func CreateSale(db *gorm.DB, businessID uint, tenantID string, outletID uint, ca
 	var subtotal float64
 	var saleItems []SaleItem
 
-	// 3. Process Items
 	for _, itemReq := range req.Items {
 		var prod product.Product
 		if err := tx.First(&prod, "id = ? AND business_id = ?", itemReq.ProductID, businessID).Error; err != nil {
 			return nil, fmt.Errorf("product %d not found", itemReq.ProductID)
 		}
 
-		// Inventory check & deduction
 		recipeSvc := recipe.NewRecipeService(db)
 		if err := recipeSvc.AdjustStockWithRecipe(tx, prod.ID, businessID, itemReq.Quantity); err != nil {
-			// Extract cleaner error from inventory service if possible
 			return nil, fmt.Errorf("insufficient stock for %s: %w", prod.Name, err)
 		}
 
-		itemPrice := prod.Price
-		itemTotal := float64(itemReq.Quantity) * itemPrice
-		itemProfit := (itemPrice - prod.Cost) * float64(itemReq.Quantity)
+		itemTotal := float64(itemReq.Quantity) * prod.Price
+		itemProfit := (prod.Price - prod.Cost) * float64(itemReq.Quantity)
 
 		saleItem := SaleItem{
 			SaleID:      sale.ID,
 			ProductID:   prod.ID,
 			ProductName: prod.Name,
 			Quantity:    itemReq.Quantity,
-			UnitPrice:   itemPrice,
+			UnitPrice:   prod.Price,
 			CostPrice:   prod.Cost,
 			TotalPrice:  itemTotal,
 			Profit:      itemProfit,
@@ -367,11 +423,30 @@ func CreateSale(db *gorm.DB, businessID uint, tenantID string, outletID uint, ca
 		saleItems = append(saleItems, saleItem)
 	}
 
-	// 4. Finalize Totals
 	sale.Subtotal = subtotal
 	sale.Total = subtotal - req.Discount + req.Tax
 
-	if sale.Total > req.AmountPaid {
+	var totalPaid float64
+	for _, p := range req.Payments {
+		totalPaid += p.Amount
+		
+		// Create direct payment entries (One-shot assumes success/reconciliation happens later or not needed)
+		payment := Payment{
+			SaleID:            sale.ID,
+			BusinessID:        businessID,
+			Amount:            p.Amount,
+			Provider:          p.Method,
+			InternalReference: "ONESHOT-" + p.Method + "-" + fmt.Sprintf("%d", time.Now().UnixNano()),
+			Status:            ReconSuccess,
+			ReconciledAt:      now,
+			CreatedAt:         now,
+		}
+		if err := tx.Create(&payment).Error; err != nil {
+			return nil, err
+		}
+	}
+
+	if totalPaid < sale.Total {
 		return nil, errors.New("insufficient payment")
 	}
 
@@ -383,28 +458,29 @@ func CreateSale(db *gorm.DB, businessID uint, tenantID string, outletID uint, ca
 		return nil, err
 	}
 
-	// 5. Update Shift Metrics
 	if sale.ShiftID != nil {
 		shiftSvc := shift.NewShiftService(db)
-		_ = shiftSvc.UpdateShiftMetrics(*sale.ShiftID, sale.Total, sale.PaymentMethod)
+		for _, p := range req.Payments {
+			_ = shiftSvc.UpdateShiftMetrics(*sale.ShiftID, p.Amount, p.Method)
+		}
 	}
-
-	// 6. Log Activity
-	_ = LogActivity(db, sale.ID, businessID, cashierID, ActionCompleted, ActivityDetails{
-		AmountPaid:    req.AmountPaid,
-		PaymentMethod: req.PaymentMethod,
-	})
 
 	return &SaleReceipt{
 		Sale:        sale,
 		Items:       saleItems,
-		Change:      req.AmountPaid - sale.Total,
+		Change:      totalPaid - sale.Total,
 		ReceiptNo:   generateReceiptNo(sale.DailySequence),
 		GeneratedAt: time.Now(),
 	}, nil
 }
 
 // ... existing code ...
+
+func generateInternalRef() string {
+	b := make([]byte, 4)
+	rand.Read(b)
+	return fmt.Sprintf("BD-%s-%s", time.Now().Format("02X"), hex.EncodeToString(b))
+}
 
 func generateReceiptNo(sequence int) string {
 	// Format: YYYYMMDD-SEQUENCE (e.g. 20260201-001)
@@ -668,11 +744,12 @@ func GenerateDailyReport(db *gorm.DB, businessID uint, dateStr string) (*DailyRe
 
 	var results []result
 
-	err := db.Model(&Sale{}).
-		Where("business_id = ? AND sale_date >= ? AND sale_date < ? AND status = ?",
+	err := db.Table("payments").
+		Joins("JOIN sales ON sales.id = payments.sale_id").
+		Where("sales.business_id = ? AND sales.sale_date >= ? AND sales.sale_date < ? AND sales.status = ?",
 			businessID, startOfDay, endOfDay, StatusCompleted).
-		Select("payment_method, SUM(total) as total_sales, COUNT(*) as total_transactions").
-		Group("payment_method").
+		Select("payments.provider as payment_method, SUM(payments.amount) as total_sales, COUNT(DISTINCT sales.id) as total_transactions").
+		Group("payments.provider").
 		Scan(&results).Error
 
 	if err != nil {
@@ -870,9 +947,12 @@ func GenerateSalesReport(db *gorm.DB, businessID uint, startDateStr, endDateStr,
 
 	var results []result
 
-	err = query.
-		Select("payment_method, SUM(total) as total_sales, COUNT(*) as total_transactions").
-		Group("payment_method").
+	err = db.Table("payments").
+		Joins("JOIN sales ON sales.id = payments.sale_id").
+		Where("sales.business_id = ? AND sales.sale_date >= ? AND sales.sale_date <= ? AND sales.status = ?",
+			businessID, startOfPeriod, endOfPeriod, StatusCompleted).
+		Select("payments.provider as payment_method, SUM(payments.amount) as total_sales, COUNT(DISTINCT sales.id) as total_transactions").
+		Group("payments.provider").
 		Scan(&results).Error
 
 	if err != nil {
