@@ -93,10 +93,17 @@ func OnboardBusiness(
 		// 	return err
 		// }
 
-		// Issue 14-day trial
-		planType := subscription.PlanTrial
-		if payload.BasePlanType == string(subscription.PlanServiceMonthly) {
-			planType = subscription.PlanServiceMonthly
+		// Issue trial or initial plan
+		planType := common.PlanTrial
+		if payload.BasePlanType != "" {
+			requestedPlan := common.PlanType(payload.BasePlanType)
+			// Validate if it's a known plan type
+			for _, p := range common.AvailablePlans {
+				if p.Type == requestedPlan {
+					planType = requestedPlan
+					break
+				}
+			}
 		}
 
 		sub, err := subscription.CreateSubscription(tx, biz.ID, planType, "SYSTEM", "INITIAL_TRIAL", 0)
@@ -134,10 +141,31 @@ func OnboardBusiness(
 			}
 		}
 
-		// Handle Selected Modules
+		// Handle Modules (Free Plan Modules + Payload Selected Modules)
 		moduleTrialExpiry := sub.EndDate
+		finalModules := make(map[string]bool)
+
+		// 1. Add Free Modules from Plan
+		var plan *common.SubscriptionPlan
+		for _, p := range common.AvailablePlans {
+			if p.Type == planType {
+				plan = &p
+				break
+			}
+		}
+		if plan != nil {
+			for _, m := range plan.FreeModules {
+				finalModules[string(m)] = true
+			}
+		}
+
+		// 2. Add Payload Selected Modules
 		for _, modName := range payload.Modules {
-			// Validate if module exists
+			finalModules[modName] = true
+		}
+
+		// 3. Persist all modules
+		for modName := range finalModules {
 			isValid := false
 			for _, am := range subscription.AvailableModules {
 				if string(am.Type) == modName {
