@@ -55,6 +55,11 @@ func ConnectDB() *gorm.DB {
 }
 
 func RunMigrations(db *gorm.DB) error {
+	if os.Getenv("DB_AUTO_MIGRATE") == "false" {
+		log.Println("Skipping main database migrations (DB_AUTO_MIGRATE=false)")
+		return nil
+	}
+
 	// Order is important: migrate parent tables first
 	err := db.AutoMigrate(
 		&otp.OTP{},

@@ -82,11 +82,16 @@ func main() {
 	}
 	// tutorial.Migrate(db)       // Ensure tutorials table exists
 	// tutorial.SeedTutorials(db) // Seed tutorial content (after migrations)
-	subscription.Migrate(db) // Ensure subscription/training resources tables exist
-	if err := seed.SeedInstallerData(db); err != nil {
-		log.Printf("[SEED ERROR] Failed to seed installer data: %v", err)
-	} else {
-		log.Println("[SEED] Installer data seeded successfully")
+	if os.Getenv("DB_AUTO_MIGRATE") != "false" {
+		subscription.Migrate(db) // Ensure subscription/training resources tables exist
+	}
+
+	if os.Getenv("DB_SEED_DATA") != "false" {
+		if err := seed.SeedInstallerData(db); err != nil {
+			log.Printf("[SEED ERROR] Failed to seed installer data: %v", err)
+		} else {
+			log.Println("[SEED] Installer data seeded successfully")
+		}
 	}
 
 	// === Start Background Tasks ===
