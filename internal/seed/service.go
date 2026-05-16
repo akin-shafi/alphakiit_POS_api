@@ -34,7 +34,7 @@ func SeedInstallerData(db *gorm.DB) error {
 		if trCount == 0 {
 			resources := []subscription.TrainingResource{
 				{
-					Title:       "BETADAY POS: Full Installer Onboarding",
+					Title:       "ZIDA POS: Full Installer Onboarding",
 					Description: "Comprehensive guide on how to set up businesses, manage hardware, and secure your commissions.",
 					URL:         "https://www.youtube.com/watch?v=dQw4w9WgXcQ", // Placeholder
 					Type:        "VIDEO",
@@ -117,7 +117,7 @@ func SeedInstallerData(db *gorm.DB) error {
 			startDate := time.Date(2026, 2, 1, 0, 0, 0, 0, time.UTC)
 			endDate := time.Date(2026, 3, 31, 23, 59, 59, 0, time.UTC)
 			promo := subscription.GlobalPromotion{
-				Name:              "BETADAY Launch Promotion 2026",
+				Name:              "ZIDA Launch Promotion 2026",
 				Description:       "Limited time: 20% off Quarterly and 40% off Annual plans.",
 				StartDate:         startDate,
 				EndDate:           endDate,
