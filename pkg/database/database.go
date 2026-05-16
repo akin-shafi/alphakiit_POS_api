@@ -6,6 +6,9 @@ import (
 
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
+	"gorm.io/gorm/logger"
+	"os"
+	"time"
 
 	"pos-fiber-app/internal/advert"
 	"pos-fiber-app/internal/auth" // if you have password_reset_otp table
@@ -29,10 +32,25 @@ import (
 )
 
 func ConnectDB() *gorm.DB {
-	db, err := gorm.Open(postgres.Open(config.DatabaseURL()), &gorm.Config{})
+	logLevel := logger.Error
+	if os.Getenv("ENV") == "development" {
+		logLevel = logger.Info
+	}
+
+	db, err := gorm.Open(postgres.Open(config.DatabaseURL()), &gorm.Config{
+		Logger: logger.Default.LogMode(logLevel),
+	})
 	if err != nil {
 		log.Fatal("Failed to connect to database:", err)
 	}
+
+	sqlDB, err := db.DB()
+	if err == nil {
+		sqlDB.SetMaxIdleConns(10)
+		sqlDB.SetMaxOpenConns(50)
+		sqlDB.SetConnMaxLifetime(30 * time.Minute)
+	}
+
 	return db
 }
 

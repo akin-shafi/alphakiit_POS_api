@@ -3,6 +3,7 @@ package auth
 import (
 	"fmt"
 	"log"
+	"strings"
 	"time"
 
 	"github.com/gofiber/fiber/v2"
@@ -32,10 +33,10 @@ func ForgotPasswordHandler(db *gorm.DB) fiber.Handler {
 			return c.Status(400).JSON(fiber.Map{"error": "Invalid payload"})
 		}
 
-		// Check if user exists
+		// Check if user exists (optimized query)
 		var u user.User
-		if err := db.Where("email = ? AND active = true", payload.Email).First(&u).Error; err != nil {
-			// Return generic message
+		if err := db.Select("id").Where("LOWER(email) = ? AND active = true", strings.ToLower(payload.Email)).First(&u).Error; err != nil {
+			// Return generic message even if user not found (security best practice)
 			return c.JSON(fiber.Map{"message": "If the email exists, an OTP has been sent"})
 		}
 

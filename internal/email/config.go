@@ -55,10 +55,13 @@ func getEnv(key, defaultValue string) string {
 func (cfg Config) Dialer() *mail.Dialer {
 	d := mail.NewDialer(cfg.SMTPHost, cfg.SMTPPort, cfg.SMTPUsername, cfg.SMTPPassword)
 
-	if cfg.UseTLS {
+	// If using port 465, implicit SSL is typical. 
+	// For 587, StartTLS is used.
+	if cfg.SMTPPort == 465 {
+		d.SSL = true
+	} else if cfg.UseTLS {
 		d.StartTLSPolicy = mail.MandatoryStartTLS
 	}
-	// d.TLSConfig = &tls.Config{InsecureSkipVerify: true} // only for dev/testing
 
 	return d
 }
